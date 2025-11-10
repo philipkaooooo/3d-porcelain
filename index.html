@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Porcelain 3D</title>
+  <style>
+    html,body{height:100%;margin:0;background:#101113}
+    canvas{width:100%;height:100%;display:block}
+    .hud{position:fixed;top:10px;left:10px;color:#cfcfcf;font:14px system-ui;opacity:.9}
+  </style>
+</head>
+<body>
+  <div class="hud">drag = orbit • wheel = zoom • dbl-click = focus</div>
+  <canvas id="c"></canvas>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
+    import { OrbitControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js";
+    import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
+
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x101113);
+
+    const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 100);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(2,3,1); scene.add(key);
+
+    const grid = new THREE.GridHelper(2, 20, 0x666666, 0x333333); grid.position.y = 0; scene.add(grid);
+
+    // 👇 If you upload your file to /assets/, change path to "/assets/porcelain.glb"
+    const loader = new GLTFLoader();
+    loader.load("porcelain.glb", (g) => {
+      const model = g.scene; scene.add(model);
+
+      // auto-frame camera
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3()).length();
+      const center = box.getCenter(new THREE.Vector3());
+      controls.target.copy(center);
+      camera.position.copy(center).add(new THREE.Vector3(1,1,1).multiplyScalar(size*0.35));
+      camera.near = Math.max(0.01, size*0.01); camera.far = size*10; camera.updateProjectionMatrix();
+
+      // gentle autospin
+      let last = performance.now()*0.001, spin = 0.25;
+      (function loop(){
+        const now = performance.now()*0.001, dt = now-last; last = now;
+        scene.rotation.y += spin*dt;
+        controls.update(); renderer.render(scene, camera);
+        requestAnimationFrame(loop);
+      })();
+    });
+
+    addEventListener("resize", () => {
+      renderer.setSize(innerWidth, innerHeight);
+      camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    });
+
+    // double-click to focus
+    renderer.domElement.addEventListener("dblclick", (e) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+      const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, camera);
+      const hit = ray.intersectObjects(scene.children, true)[0]; if (hit) controls.target.copy(hit.point);
+    });
+  </script>
+</body>
+</html>
