@@ -3,491 +3,330 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timeless Blue - 3D Logo Transitions</title>
+    <title>Timeless Blue - 3D Logo Integration</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             overflow: hidden;
             background: #000;
             font-family: 'Arial', sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             color: white;
         }
-        
-        #canvas-container {
-            position: fixed;
+
+        .scene-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .artwork {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .artwork.active {
+            opacity: 1;
+        }
+
+        .artwork-content {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(0, 0, 30, 0.7);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 100, 255, 0.5);
+            max-width: 80%;
+        }
+
+        .artwork-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #7db9e8;
+            text-shadow: 0 0 10px rgba(125, 185, 232, 0.7);
+        }
+
+        .artwork-description {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            color: #e6f7ff;
+        }
+
+        .day-night-cycle {
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 1;
+            z-index: -1;
+            transition: background 1.5s ease-in-out;
         }
-        
-        .logo-container {
+
+        .logo-3d {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 10;
+            width: 200px;
+            height: 200px;
             opacity: 0;
-            transition: opacity 0.5s ease;
-        }
-        
-        .logo {
-            font-size: 3rem;
-            font-weight: bold;
-            text-align: center;
-            color: transparent;
-            background: linear-gradient(135deg, #1a237e, #283593, #3949ab, #5c6bc0);
-            -webkit-background-clip: text;
-            background-clip: text;
-            text-shadow: 0 0 15px rgba(66, 133, 244, 0.7);
-            letter-spacing: 0.2em;
-            line-height: 1.4;
-        }
-        
-        .logo-subtitle {
-            font-size: 1.2rem;
-            margin-top: 0.5rem;
-            color: #bbdefb;
-            letter-spacing: 0.3em;
-            text-align: center;
-        }
-        
-        .controls {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            pointer-events: none;
             z-index: 100;
-            display: flex;
-            gap: 15px;
+            transition: opacity 0.8s ease;
         }
-        
-        button {
-            background: rgba(30, 30, 70, 0.7);
-            border: 1px solid #3949ab;
-            color: #e8eaf6;
+
+        .logo-text {
+            font-size: 2rem;
+            font-weight: bold;
+            color: rgba(125, 185, 232, 0.15);
+            text-shadow: 
+                0 0 8px rgba(64, 156, 255, 0.3),
+                0 0 15px rgba(64, 156, 255, 0.2),
+                0 0 22px rgba(64, 156, 255, 0.1);
+            text-align: center;
+            line-height: 1.2;
+            animation: pulse 3s infinite alternate;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        .control-btn {
             padding: 10px 20px;
-            border-radius: 30px;
+            background: rgba(0, 30, 60, 0.7);
+            color: #7db9e8;
+            border: 1px solid #3a6ea5;
+            border-radius: 5px;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 0.9rem;
-            letter-spacing: 0.1em;
+            font-size: 1rem;
         }
-        
-        button:hover {
-            background: rgba(57, 73, 171, 0.5);
-            box-shadow: 0 0 15px rgba(57, 73, 171, 0.7);
+
+        .control-btn:hover {
+            background: rgba(30, 60, 120, 0.7);
+            box-shadow: 0 0 10px rgba(125, 185, 232, 0.5);
         }
-        
-        .scene-info {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 100;
-            background: rgba(10, 15, 40, 0.7);
-            padding: 10px 20px;
-            border-radius: 10px;
-            border-left: 3px solid #5c6bc0;
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.3;
+                transform: scale(0.95);
+            }
+            100% {
+                opacity: 0.7;
+                transform: scale(1.05);
+            }
         }
-        
-        .day-night-indicator {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 100;
-            background: rgba(10, 15, 40, 0.7);
-            padding: 10px 20px;
-            border-radius: 10px;
-            border-left: 3px solid #ff9800;
+
+        @keyframes spin {
+            0% {
+                transform: translate(-50%, -50%) rotateY(0deg) scale(0.8);
+            }
+            50% {
+                transform: translate(-50%, -50%) rotateY(180deg) scale(1);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotateY(360deg) scale(0.8);
+            }
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(-50%, -50%) translateY(0px);
+            }
+            50% {
+                transform: translate(-50%, -50%) translateY(-15px);
+            }
+        }
+
+        .logo-visible {
+            opacity: 1;
+            animation: 
+                spin 4s ease-in-out,
+                float 6s ease-in-out infinite;
         }
     </style>
 </head>
 <body>
-    <div id="canvas-container"></div>
-    
-    <div class="logo-container" id="logo-container">
-        <div class="logo">Timeless Blue</div>
-        <div class="logo-subtitle">藍 月 芬 華</div>
-    </div>
-    
-    <div class="scene-info">
-        <div id="scene-name">Forest Glade</div>
-        <div id="transition-status">Transitioning...</div>
-    </div>
-    
-    <div class="day-night-indicator">
-        <div id="time-of-day">Day</div>
-        <div id="cycle-speed">Speed: 2x</div>
-    </div>
-    
-    <div class="controls">
-        <button id="prev-scene">Previous Scene</button>
-        <button id="next-scene">Next Scene</button>
-        <button id="random-scene">Random Scene</button>
-        <button id="speed-up">Increase Speed</button>
+    <div class="scene-container">
+        <div class="day-night-cycle" id="dayNightCycle"></div>
+        
+        <div class="artwork active" id="artwork1">
+            <div class="artwork-content">
+                <h2 class="artwork-title">Azure Horizon</h2>
+                <p class="artwork-description">Where the sky meets the ocean in an eternal dance of blue hues, creating a seamless horizon that stretches beyond imagination.</p>
+            </div>
+        </div>
+        
+        <div class="artwork" id="artwork2">
+            <div class="artwork-content">
+                <h2 class="artwork-title">Moonlit Peaks</h2>
+                <p class="artwork-description">Snow-capped mountains under the gentle glow of a full blue moon, casting serene shadows across the silent valley below.</p>
+            </div>
+        </div>
+        
+        <div class="artwork" id="artwork3">
+            <div class="artwork-content">
+                <h2 class="artwork-title">Deep Abyss</h2>
+                <p class="artwork-description">Exploring the mysterious depths where light barely reaches, revealing creatures and formations in shades of deep blue.</p>
+            </div>
+        </div>
+        
+        <div class="logo-3d" id="logo3D">
+            <div class="logo-text">Timeless Blue<br>藍 月 芬 華</div>
+        </div>
+        
+        <div class="controls">
+            <button class="control-btn" id="prevBtn">Previous</button>
+            <button class="control-btn" id="nextBtn">Next</button>
+            <button class="control-btn" id="autoBtn">Auto Cycle</button>
+        </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // Scene setup
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-        // Lighting setup
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-        scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 7);
-        scene.add(directionalLight);
-        
-        // Day/Night cycle parameters
-        let dayNightCycle = 0;
-        let cycleSpeed = 0.002;
-        let isDay = true;
-        
-        // Scene management
-        const scenes = [
-            { 
-                name: "Forest Glade", 
-                color: 0x2e7d32, 
-                particleColor: 0x4caf50,
-                objects: []
-            },
-            { 
-                name: "Ocean Depths", 
-                color: 0x01579b, 
-                particleColor: 0x29b6f6,
-                objects: []
-            },
-            { 
-                name: "Mountain Peak", 
-                color: 0x37474f, 
-                particleColor: 0x78909c,
-                objects: []
-            },
-            { 
-                name: "Desert Dunes", 
-                color: 0xf57c00, 
-                particleColor: 0xffb74d,
-                objects: []
-            },
-            { 
-                name: "Crystal Cavern", 
-                color: 0x6a1b9a, 
-                particleColor: 0xab47bc,
-                objects: []
-            }
-        ];
-        
-        let currentSceneIndex = 0;
-        let isTransitioning = false;
-        let transitionProgress = 0;
-        let transitionDirection = 1;
-        
-        // Particle system for transitions
-        const particleCount = 1000;
-        const particles = new THREE.BufferGeometry();
-        const particlePositions = new Float32Array(particleCount * 3);
-        const particleColors = new Float32Array(particleCount * 3);
-        
-        for (let i = 0; i < particleCount * 3; i += 3) {
-            particlePositions[i] = (Math.random() - 0.5) * 100;
-            particlePositions[i + 1] = (Math.random() - 0.5) * 100;
-            particlePositions[i + 2] = (Math.random() - 0.5) * 100;
+        document.addEventListener('DOMContentLoaded', function() {
+            const artworks = document.querySelectorAll('.artwork');
+            const dayNightCycle = document.getElementById('dayNightCycle');
+            const logo3D = document.getElementById('logo3D');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const autoBtn = document.getElementById('autoBtn');
             
-            // Initial colors based on current scene
-            const color = new THREE.Color(scenes[currentSceneIndex].particleColor);
-            particleColors[i] = color.r;
-            particleColors[i + 1] = color.g;
-            particleColors[i + 2] = color.b;
-        }
-        
-        particles.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-        particles.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
-        
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 0.5,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.8
-        });
-        
-        const particleSystem = new THREE.Points(particles, particleMaterial);
-        scene.add(particleSystem);
-        
-        // 3D Logo setup
-        const logoGroup = new THREE.Group();
-        scene.add(logoGroup);
-        
-        // Create text geometry for the logo
-        const loader = new THREE.FontLoader();
-        let logoText1, logoText2;
-        
-        // Create simple 3D text as fallback
-        const createTextGeometry = (text, size, height) => {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 512;
-            canvas.height = 256;
+            let currentArtwork = 0;
+            let autoCycleInterval;
+            let isAutoCycling = false;
+            let dayNightValue = 0;
+            let dayNightDirection = 1;
             
-            context.fillStyle = '#ffffff';
-            context.font = 'Bold 120px Arial';
-            context.textAlign = 'center';
-            context.textBaseline = 'middle';
-            context.fillText(text, canvas.width/2, canvas.height/2);
+            // Day/Night cycle colors - rhythmic gradient progression
+            const dayNightColors = [
+                '#0a0a2a', // Deep night
+                '#1a1a4a', 
+                '#2a2a6a',
+                '#3a5a8a', // Twilight
+                '#5a7aaa',
+                '#7a9aca',
+                '#9abaea', // Day
+                '#badefa',
+                '#9abaea',
+                '#7a9aca',
+                '#5a7aaa',
+                '#3a5a8a', // Twilight
+                '#2a2a6a',
+                '#1a1a4a'
+            ];
             
-            const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.MeshBasicMaterial({ 
-                map: texture, 
-                transparent: true,
-                side: THREE.DoubleSide
-            });
+            // Initialize first artwork
+            showArtwork(currentArtwork);
+            updateDayNightCycle();
             
-            const geometry = new THREE.PlaneGeometry(size, size/2, 1, 1);
-            const mesh = new THREE.Mesh(geometry, material);
+            // Event listeners for navigation
+            prevBtn.addEventListener('click', showPreviousArtwork);
+            nextBtn.addEventListener('click', showNextArtwork);
+            autoBtn.addEventListener('click', toggleAutoCycle);
             
-            return mesh;
-        };
-        
-        // Create logo elements
-        logoText1 = createTextGeometry("Timeless Blue", 10, 1);
-        logoText2 = createTextGeometry("藍 月 芬 華", 6, 1);
-        
-        logoText2.position.y = -2;
-        
-        logoGroup.add(logoText1);
-        logoGroup.add(logoText2);
-        
-        // Position logo initially off-screen
-        logoGroup.position.z = -20;
-        logoGroup.visible = false;
-        
-        // Add some decorative elements to the logo
-        const ringGeometry = new THREE.TorusGeometry(6, 0.2, 16, 100);
-        const ringMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x5c6bc0, 
-            transparent: true, 
-            opacity: 0.7 
-        });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = Math.PI / 2;
-        logoGroup.add(ring);
-        
-        // Camera position
-        camera.position.z = 15;
-        
-        // Animation variables
-        let logoAnimationProgress = 0;
-        let logoAnimationDirection = 1;
-        let logoVisible = false;
-        
-        // UI Elements
-        const sceneNameElement = document.getElementById('scene-name');
-        const transitionStatusElement = document.getElementById('transition-status');
-        const timeOfDayElement = document.getElementById('time-of-day');
-        const cycleSpeedElement = document.getElementById('cycle-speed');
-        const logoContainer = document.getElementById('logo-container');
-        
-        // Scene transition function
-        function transitionToScene(newSceneIndex) {
-            if (isTransitioning || newSceneIndex === currentSceneIndex) return;
-            
-            isTransitioning = true;
-            transitionProgress = 0;
-            transitionDirection = 1;
-            
-            // Show logo during transition
-            logoGroup.visible = true;
-            logoAnimationProgress = 0;
-            logoAnimationDirection = 1;
-            logoVisible = true;
-            
-            // Update UI
-            transitionStatusElement.textContent = "Transitioning...";
-            logoContainer.style.opacity = "1";
-            
-            // Animate particles to form new scene
-            const targetScene = scenes[newSceneIndex];
-            const targetColor = new THREE.Color(targetScene.particleColor);
-            
-            // Update particle target colors
-            for (let i = 0; i < particleCount * 3; i += 3) {
-                particleColors[i] = targetColor.r;
-                particleColors[i + 1] = targetColor.g;
-                particleColors[i + 2] = targetColor.b;
-            }
-            particles.attributes.color.needsUpdate = true;
-            
-            // Change scene after transition
-            setTimeout(() => {
-                currentSceneIndex = newSceneIndex;
-                sceneNameElement.textContent = scenes[currentSceneIndex].name;
+            function showArtwork(index) {
+                // Hide all artworks
+                artworks.forEach(artwork => {
+                    artwork.classList.remove('active');
+                });
                 
-                // Hide logo after transition
+                // Show selected artwork
+                artworks[index].classList.add('active');
+                
+                // Show 3D logo during transition
+                showLogoTransition();
+                
+                // Update day/night cycle
+                updateDayNightCycle();
+            }
+            
+            function showPreviousArtwork() {
+                currentArtwork = (currentArtwork - 1 + artworks.length) % artworks.length;
+                showArtwork(currentArtwork);
+            }
+            
+            function showNextArtwork() {
+                currentArtwork = (currentArtwork + 1) % artworks.length;
+                showArtwork(currentArtwork);
+            }
+            
+            function showLogoTransition() {
+                // Reset and show logo
+                logo3D.classList.remove('logo-visible');
+                void logo3D.offsetWidth; // Trigger reflow
+                logo3D.classList.add('logo-visible');
+                
+                // Hide logo after animation completes
                 setTimeout(() => {
-                    logoAnimationDirection = -1;
-                    setTimeout(() => {
-                        logoGroup.visible = false;
-                        logoVisible = false;
-                        logoContainer.style.opacity = "0";
-                    }, 1000);
-                }, 1000);
-            }, 1500);
-        }
-        
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
+                    logo3D.classList.remove('logo-visible');
+                }, 2000);
+            }
             
-            // Day/Night cycle
-            dayNightCycle += cycleSpeed;
-            if (dayNightCycle > Math.PI * 2) dayNightCycle = 0;
-            
-            // Update lighting based on day/night cycle
-            const dayIntensity = Math.sin(dayNightCycle) * 0.5 + 0.5;
-            directionalLight.intensity = dayIntensity;
-            
-            // Change ambient color based on time of day
-            const hue = 0.6 + (Math.sin(dayNightCycle) * 0.1);
-            const saturation = 0.5 + (Math.sin(dayNightCycle) * 0.3);
-            const lightness = 0.3 + (Math.sin(dayNightCycle) * 0.2);
-            
-            const ambientColor = new THREE.Color().setHSL(hue, saturation, lightness);
-            ambientLight.color = ambientColor;
-            
-            // Update day/night indicator
-            isDay = dayIntensity > 0.5;
-            timeOfDayElement.textContent = isDay ? "Day" : "Night";
-            timeOfDayElement.style.color = isDay ? "#ffa000" : "#5c6bc0";
-            
-            // Handle scene transitions
-            if (isTransitioning) {
-                transitionProgress += 0.02 * transitionDirection;
+            function updateDayNightCycle() {
+                // Calculate color based on current artwork and progression
+                const colorIndex = Math.floor(dayNightValue) % dayNightColors.length;
+                dayNightCycle.style.background = `linear-gradient(135deg, ${dayNightColors[colorIndex]}, ${dayNightColors[(colorIndex + 4) % dayNightColors.length]})`;
                 
-                if (transitionProgress >= 1) {
-                    transitionProgress = 1;
-                    setTimeout(() => {
-                        transitionDirection = -1;
-                    }, 500);
-                } else if (transitionProgress <= 0 && transitionDirection === -1) {
-                    transitionProgress = 0;
-                    isTransitioning = false;
-                    transitionStatusElement.textContent = "Stable";
+                // Update dayNightValue with rhythmic progression
+                dayNightValue += 0.5 * dayNightDirection;
+                
+                // Reverse direction at boundaries for continuous flow
+                if (dayNightValue >= dayNightColors.length - 1 || dayNightValue <= 0) {
+                    dayNightDirection *= -1;
                 }
-                
-                // Animate particles during transition
-                const positions = particles.attributes.position.array;
-                const originalPositions = [...positions];
-                
-                for (let i = 0; i < particleCount * 3; i += 3) {
-                    // Create swirling motion
-                    const angle = transitionProgress * Math.PI * 2 + i * 0.01;
-                    const radius = 5 + (i % 10) * 0.5;
-                    
-                    positions[i] = originalPositions[i] + Math.cos(angle) * radius * transitionProgress;
-                    positions[i + 1] = originalPositions[i + 1] + Math.sin(angle) * radius * transitionProgress;
-                    positions[i + 2] = originalPositions[i + 2] + Math.sin(angle) * radius * transitionProgress * 0.5;
+            }
+            
+            function toggleAutoCycle() {
+                if (isAutoCycling) {
+                    clearInterval(autoCycleInterval);
+                    autoBtn.textContent = 'Auto Cycle';
+                    isAutoCycling = false;
+                } else {
+                    autoCycleInterval = setInterval(showNextArtwork, 5000);
+                    autoBtn.textContent = 'Stop Auto';
+                    isAutoCycling = true;
                 }
-                
-                particles.attributes.position.needsUpdate = true;
             }
             
-            // Logo animation during transitions
-            if (logoVisible) {
-                logoAnimationProgress += 0.02 * logoAnimationDirection;
-                
-                if (logoAnimationProgress > 1) logoAnimationProgress = 1;
-                if (logoAnimationProgress < 0) logoAnimationProgress = 0;
-                
-                // Float and spin animation
-                const floatOffset = Math.sin(Date.now() * 0.002) * 0.5;
-                logoGroup.position.y = floatOffset;
-                
-                // Balanced spinning
-                logoGroup.rotation.y = logoAnimationProgress * Math.PI * 2;
-                logoGroup.rotation.x = Math.sin(Date.now() * 0.001) * 0.1;
-                
-                // Scale animation
-                const scale = 0.5 + logoAnimationProgress * 0.5;
-                logoGroup.scale.set(scale, scale, scale);
-                
-                // Laser-like appearance
-                const opacity = logoAnimationProgress;
-                logoText1.material.opacity = opacity;
-                logoText2.material.opacity = opacity;
-                ring.material.opacity = opacity * 0.7;
-                
-                // Position adjustment
-                logoGroup.position.z = -10 + logoAnimationProgress * 5;
-            }
+            // Continuous day/night cycle update
+            setInterval(updateDayNightCycle, 800);
             
-            // Rotate particle system
-            particleSystem.rotation.y += 0.002;
-            particleSystem.rotation.x += 0.001;
-            
-            renderer.render(scene, camera);
-        }
-        
-        // Event listeners for controls
-        document.getElementById('next-scene').addEventListener('click', () => {
-            const nextIndex = (currentSceneIndex + 1) % scenes.length;
-            transitionToScene(nextIndex);
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowLeft') {
+                    showPreviousArtwork();
+                } else if (e.key === 'ArrowRight') {
+                    showNextArtwork();
+                } else if (e.key === ' ') {
+                    toggleAutoCycle();
+                }
+            });
         });
-        
-        document.getElementById('prev-scene').addEventListener('click', () => {
-            const prevIndex = (currentSceneIndex - 1 + scenes.length) % scenes.length;
-            transitionToScene(prevIndex);
-        });
-        
-        document.getElementById('random-scene').addEventListener('click', () => {
-            let newIndex;
-            do {
-                newIndex = Math.floor(Math.random() * scenes.length);
-            } while (newIndex === currentSceneIndex && scenes.length > 1);
-            
-            transitionToScene(newIndex);
-        });
-        
-        document.getElementById('speed-up').addEventListener('click', () => {
-            cycleSpeed *= 1.5;
-            if (cycleSpeed > 0.02) cycleSpeed = 0.002; // Reset if too fast
-            
-            const speedMultiplier = Math.round(cycleSpeed / 0.002);
-            cycleSpeedElement.textContent = `Speed: ${speedMultiplier}x`;
-        });
-        
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        // Initialize
-        sceneNameElement.textContent = scenes[currentSceneIndex].name;
-        transitionStatusElement.textContent = "Stable";
-        
-        // Start animation
-        animate();
-        
-        // Auto-transition every 10 seconds
-        setInterval(() => {
-            if (!isTransitioning) {
-                const nextIndex = (currentSceneIndex + 1) % scenes.length;
-                transitionToScene(nextIndex);
-            }
-        }, 10000);
     </script>
 </body>
 </html>
