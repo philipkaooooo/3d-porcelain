@@ -1,266 +1,452 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <title>Porcelain Illumination</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html,body { width: 100%; height: 100%; }
-        body{
-            background:#000;
-            color:#fff;
-            font-family: Inter, sans-serif;
-            overflow:hidden;
-        }
-        #container{ position:fixed; width:100%; height:100%; }
-        canvas{ display:block; }
-        .ui-overlay{ position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100; }
-        .loading-screen{ 
-            position:fixed; inset:0; 
-            display:flex; flex-direction:column; justify-content:center; align-items:center; 
-            background:#000; z-index:1000; 
-            font-size:18px;
-        }
-        .hud{ 
-            position:fixed; top:20px; left:20px; 
-            background:rgba(0,0,0,0.8); padding:12px 16px; border-radius:8px; 
-            font-size:12px; pointer-events:auto; 
-        }
-        .controls{ 
-            position:fixed; bottom:20px; left:20px; 
-            background:rgba(0,0,0,0.8); padding:12px; border-radius:8px; 
-            font-size:11px; pointer-events:auto;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Porcelain Transcendence</title>
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; }
+    html,body { width:100%; height:100%; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: Inter, sans-serif;
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+    }
+    #container { position: absolute; inset: 0; }
+    canvas { display:block; outline:none; }
+    .ui { position:absolute; z-index:10; pointer-events: none; inset:0; }
+    .hud { pointer-events: auto; position: absolute; left: 18px; top: 18px; background: rgba(0,0,0,0.45); padding:10px 12px; border-radius:8px; font-size:12px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.04); }
+    .controls { pointer-events:auto; position:absolute; left:18px; bottom:18px; background: rgba(0,0,0,0.45); padding:10px; border-radius:8px; font-size:11px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.04); }
+    .effects { position:absolute; right:18px; top:18px; pointer-events:auto; background: rgba(0,0,0,0.45); padding:10px; border-radius:8px; font-size:11px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.04); }
+    .loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; background:#000; }
+    .loading .bar { width:300px; height:3px; background: rgba(255,255,255,0.06); overflow:hidden; }
+    .loading .progress { height:100%; background: linear-gradient(90deg,#ff6b6b,#ffa86b,#ffd86b); width:0%; transition: width 0.2s ease; }
+  </style>
 </head>
 <body>
-    <div id="container"></div>
+  <div id="container"></div>
 
-    <div class="loading-screen" id="loadingScreen">
-        Loading Porcelain...
+  <div class="ui">
+    <div class="hud">DRAG: ORBIT • SCROLL: ZOOM • SPACE: TOGGLE ROTATION</div>
+    <div class="effects">
+      <label><input id="cursorLightToggle" type="checkbox" checked> Cursor Light</label><br>
+      <label><input id="bloomToggle" type="checkbox" checked> Bloom</label><br>
+      <label><input id="particlesToggle" type="checkbox" checked> Particles</label>
     </div>
-
-    <div class="ui-overlay">
-        <div class="hud">DRAG: ORBIT • SCROLL: ZOOM • SPACE: ROTATE</div>
-        <div class="controls">
-            SPACE: Auto-rotate • R: Reset camera • 1-4: Material presets
-        </div>
+    <div class="controls">
+      SPACE: Toggle Rotation • R: Reset Camera • F: Fullscreen
     </div>
+  </div>
 
-    <script type="module">
-        import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js';
-        import { GLTFLoader } from 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js';
+  <div class="loading" id="loadingScreen">
+    <div style="text-align:center;">
+      <div style="font-size:18px;margin-bottom:10px;">PORCELAIN TRANSCENDENCE</div>
+      <div class="bar"><div id="loadingProgress" class="progress"></div></div>
+    </div>
+  </div>
 
-        // Core setup
-        const container = document.getElementById('container');
-        const loadingScreen = document.getElementById('loadingScreen');
-        
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050510);
-        
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(6, 4, 6);
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        container.appendChild(renderer.domElement);
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
 
-        // Controls
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.minDistance = 2;
-        controls.maxDistance = 20;
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+  import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // Professional 3-point lighting
-        const ambientLight = new THREE.AmbientLight(0x404080, 0.6);
-        scene.add(ambientLight);
+  // container & renderer
+  const container = document.getElementById('container');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
 
-        const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
-        keyLight.position.set(10, 12, 8);
-        keyLight.castShadow = true;
-        keyLight.shadow.mapSize.width = 2048;
-        keyLight.shadow.mapSize.height = 2048;
-        scene.add(keyLight);
+  const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.05, 2000);
+  camera.position.set(6, 3.4, 6);
 
-        const fillLight = new THREE.DirectionalLight(0x4a6cff, 1.2);
-        fillLight.position.set(-8, 6, -6);
-        scene.add(fillLight);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
+  else renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.physicallyCorrectLights = true;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
 
-        const rimLight = new THREE.DirectionalLight(0xff9d6b, 0.8);
-        rimLight.position.set(0, 8, -10);
-        scene.add(rimLight);
+  // controls
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 1.4;
+  controls.maxDistance = 30;
+  controls.maxPolarAngle = Math.PI * 0.495;
 
-        // Environment
-        const ground = new THREE.Mesh(
-            new THREE.CircleGeometry(10, 32),
-            new THREE.MeshStandardMaterial({ 
-                color: 0x111122,
-                roughness: 0.8,
-                metalness: 0.1
-            })
-        );
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+  // lighting: focused, minimal but high quality
+  // 1) Hemisphere - soft ambient fill
+  const hemi = new THREE.HemisphereLight(0xe8f5ff, 0x111012, 0.45);
+  scene.add(hemi);
 
-        // Load model
-        const loader = new GLTFLoader();
-        let porcelain = null;
-        let autoRotate = true;
+  // 2) Key directional (soft "studio" key)
+  const key = new THREE.DirectionalLight(0xffffff, 2.4);
+  key.position.set(7, 10, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.near = 0.5;
+  key.shadow.camera.far = 100;
+  key.shadow.bias = -0.0005;
+  // tighter shadow camera for crispness without artifact
+  const s = 20;
+  key.shadow.camera.left = -s; key.shadow.camera.right = s; key.shadow.camera.top = s; key.shadow.camera.bottom = -s;
+  scene.add(key);
 
-        loader.load(
-            './porcelain.glb',
-            (gltf) => {
-                porcelain = gltf.scene;
-                
-                // Setup porcelain materials and shadows
-                porcelain.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        
-                        if (child.material) {
-                            // Professional porcelain material
-                            child.material.roughness = 0.08;
-                            child.material.metalness = 0.02;
-                            child.material.envMapIntensity = 1.5;
-                        }
-                    }
-                });
+  // 3) Soft fill (cool)
+  const fill = new THREE.DirectionalLight(0xa8c8ff, 0.6);
+  fill.position.set(-6, 4, -4);
+  scene.add(fill);
 
-                // Center and scale
-                const box = new THREE.Box3().setFromObject(porcelain);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                
-                porcelain.position.sub(center);
-                porcelain.position.y += 1.5;
-                
-                const scale = 4 / Math.max(size.x, size.y, size.z);
-                porcelain.scale.setScalar(scale);
+  // 4) Warm rim for separation
+  const rim = new THREE.DirectionalLight(0xfff0e6, 0.6);
+  rim.position.set(0, 4, -8);
+  scene.add(rim);
 
-                scene.add(porcelain);
-                loadingScreen.style.display = 'none';
-                
-                // Set camera target
-                controls.target.copy(porcelain.position);
-            },
-            (progress) => {
-                if (progress.lengthComputable) {
-                    const percent = Math.round((progress.loaded / progress.total) * 100);
-                    loadingScreen.textContent = `Loading: ${percent}%`;
-                }
-            },
-            (error) => {
-                console.error('Load error:', error);
-                loadingScreen.textContent = 'Error loading porcelain.glb';
-                loadingScreen.style.color = '#ff4444';
-            }
-        );
+  // PMREM for realistic reflections (keeps highlights crisp)
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
 
-        // Simple particles for atmosphere
-        const particleGeometry = new THREE.BufferGeometry();
-        const particleCount = 800;
-        const posArray = new Float32Array(particleCount * 3);
-        
-        for(let i = 0; i < particleCount * 3; i++) {
-            posArray[i] = (Math.random() - 0.5) * 15;
-        }
-        
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 0.08,
-            color: 0x4488ff,
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
+  // placeholder small cubemap (keeps environment non-empty)
+  const env = new THREE.CubeTextureLoader().load([
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  ], () => {
+    scene.environment = pmrem.fromCubemap(env).texture;
+  });
+
+  // ground and subtle reflection
+  const groundGeo = new THREE.PlaneGeometry(300, 300);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.8, metalness: 0.0 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // local glossy disc under object for subtle local reflections
+  const discGeo = new THREE.CircleGeometry(10, 64);
+  const discMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.5, metalness: 0.04 });
+  const disc = new THREE.Mesh(discGeo, discMat);
+  disc.rotation.x = -Math.PI/2;
+  disc.position.y = 0.001;
+  disc.receiveShadow = true;
+  scene.add(disc);
+
+  // post-processing: keep minimal and high quality
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.3, 0.85);
+  composer.addPass(bloom);
+
+  // particles: subtle, non-distracting
+  const ptsGeo = new THREE.BufferGeometry();
+  const count = 1200;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  for (let i=0;i<count;i++){
+    const i3 = i*3;
+    const r = 10 + Math.random()*8;
+    const a = Math.random()*Math.PI*2;
+    const b = Math.acos(2*Math.random()-1);
+    positions[i3] = r*Math.sin(b)*Math.cos(a);
+    positions[i3+1] = r*Math.cos(b)*0.45;
+    positions[i3+2] = r*Math.sin(b)*Math.sin(a);
+    const c = new THREE.Color().setHSL(Math.random()*0.16 + 0.52, 0.7, 0.6);
+    colors[i3]=c.r; colors[i3+1]=c.g; colors[i3+2]=c.b;
+  }
+  ptsGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  ptsGeo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  const ptsMat = new THREE.PointsMaterial({ size:0.14, vertexColors: true, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+  const particles = new THREE.Points(ptsGeo, ptsMat);
+  particles.renderOrder = 1;
+  scene.add(particles);
+
+  // model group
+  const modelGroup = new THREE.Group();
+  scene.add(modelGroup);
+
+  // invisible plane to raycast to when model misses
+  const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({ visible: false }));
+  interactPlane.rotation.x = -Math.PI/2;
+  interactPlane.position.y = 0;
+  scene.add(interactPlane);
+
+  // loader & fallback
+  const loader = new GLTFLoader();
+  let porcelain = null;
+  const loadingScreen = document.getElementById('loadingScreen');
+  const loadingProgress = document.getElementById('loadingProgress');
+
+  function makePorcelainMaterial(baseColor = new THREE.Color(0xffffff)) {
+    return new THREE.MeshPhysicalMaterial({
+      color: baseColor,
+      roughness: 0.06,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      reflectivity: 0.9,
+      envMapIntensity: 1.25,
+      side: THREE.FrontSide
+    });
+  }
+
+  function createFallbackPorcelain() {
+    // high-poly sphere as fallback porcelain object (smooth, not a cube)
+    const geo = new THREE.SphereGeometry(1.6, 128, 128);
+    const mat = makePorcelainMaterial();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    // subtle sculpt-like deformation to avoid perfect sphere look
+    mesh.geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -0.25, 0));
+    return mesh;
+  }
+
+  loader.load('./porcelain.glb',
+    (gltf) => {
+      porcelain = gltf.scene;
+      // ensure we have at least one mesh; otherwise fallback
+      let foundMesh = false;
+      porcelain.traverse((c) => {
+        if (c.isMesh) foundMesh = true;
+      });
+
+      if (!foundMesh) {
+        console.warn('GLTF did not contain meshes — using fallback porcelain sphere.');
+        porcelain = createFallbackPorcelain();
+        modelGroup.add(porcelain);
+      } else {
+        // convert every mesh to high-quality PBR porcelain while preserving textures
+        porcelain.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            const orig = child.material || {};
+            const color = orig.color ? orig.color.clone() : new THREE.Color(0xffffff);
+            const mat = makePorcelainMaterial(color);
+            if (orig.map) mat.map = orig.map;
+            if (orig.normalMap) mat.normalMap = orig.normalMap;
+            if (orig.roughnessMap) mat.roughnessMap = orig.roughnessMap;
+            if (orig.metalnessMap) mat.metalnessMap = orig.metalnessMap;
+            // store baseline for gentle restoration if we do dynamic interactions
+            mat.userData = { baseRoughness: mat.roughness, baseEnv: mat.envMapIntensity, baseClearcoat: mat.clearcoat };
+            child.material = mat;
+          }
         });
-        const particles = new THREE.Points(particleGeometry, particleMaterial);
-        scene.add(particles);
+        modelGroup.add(porcelain);
+      }
 
-        // Animation
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            // Auto-rotation
-            if (porcelain && autoRotate) {
-                porcelain.rotation.y += 0.008;
-            }
-            
-            // Subtle particle movement
-            particles.rotation.y += 0.002;
-            
-            controls.update();
-            renderer.render(scene, camera);
+      // center + scale + ground-align
+      const box = new THREE.Box3().setFromObject(modelGroup);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      modelGroup.position.sub(center);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const targetHeight = 4.8;
+      const scale = (maxDim > 0) ? (targetHeight / maxDim) : 1.0;
+      modelGroup.scale.setScalar(scale);
+      modelGroup.updateWorldMatrix(true, true);
+      const afterBox = new THREE.Box3().setFromObject(modelGroup);
+      const minY = afterBox.min.y;
+      modelGroup.position.y -= minY;
+
+      // frame camera and controls
+      const modelHeight = afterBox.getSize(new THREE.Vector3()).y;
+      controls.target.set(0, modelHeight * 0.45, 0);
+      controls.update();
+      camera.position.set(modelHeight * 1.4, modelHeight * 0.9, modelHeight * 1.4);
+      camera.lookAt(controls.target);
+
+      // ensure env applied
+      modelGroup.traverse((m) => {
+        if (m.isMesh && m.material && scene.environment) {
+          m.material.envMap = scene.environment;
+          m.material.envMapIntensity = m.material.userData?.baseEnv ?? 1.25;
+          m.material.needsUpdate = true;
         }
-        animate();
+      });
 
-        // Controls
-        document.addEventListener('keydown', (e) => {
-            switch(e.code) {
-                case 'Space':
-                    e.preventDefault();
-                    autoRotate = !autoRotate;
-                    break;
-                case 'KeyR':
-                    controls.reset();
-                    break;
-                case 'Digit1':
-                    setMaterialPreset('porcelain');
-                    break;
-                case 'Digit2':
-                    setMaterialPreset('ceramic');
-                    break;
-                case 'Digit3':
-                    setMaterialPreset('glossy');
-                    break;
-                case 'Digit4':
-                    setMaterialPreset('matte');
-                    break;
-            }
-        });
+      setTimeout(() => { loadingScreen.style.display = 'none'; }, 450);
+    },
+    (xhr) => {
+      if (xhr && xhr.lengthComputable) {
+        const pct = (xhr.loaded / xhr.total) * 100;
+        loadingProgress.style.width = pct + '%';
+      } else if (xhr && xhr.loaded) {
+        loadingProgress.style.width = Math.min(95, (xhr.loaded / 1000000) * 100) + '%';
+      }
+    },
+    (err) => {
+      console.error('Model load error, creating fallback porcelain:', err);
+      // fallback: create a visible porcelain when GLB fails
+      porcelain = createFallbackPorcelain();
+      modelGroup.add(porcelain);
+      modelGroup.updateWorldMatrix(true, true);
+      setTimeout(() => { loadingScreen.style.display = 'none'; }, 450);
+    }
+  );
 
-        function setMaterialPreset(preset) {
-            if (!porcelain) return;
-            
-            porcelain.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    switch(preset) {
-                        case 'porcelain':
-                            child.material.roughness = 0.08;
-                            child.material.metalness = 0.02;
-                            break;
-                        case 'ceramic':
-                            child.material.roughness = 0.3;
-                            child.material.metalness = 0.0;
-                            break;
-                        case 'glossy':
-                            child.material.roughness = 0.02;
-                            child.material.metalness = 0.1;
-                            break;
-                        case 'matte':
-                            child.material.roughness = 0.8;
-                            child.material.metalness = 0.0;
-                            break;
-                    }
-                }
-            });
+  // cursor light: single point light that follows pointer and softly modifies PBR
+  const cursorLight = new THREE.PointLight(0xfff9ea, 0.0, 28, 2.0);
+  cursorLight.castShadow = true;
+  cursorLight.shadow.mapSize.set(2048, 2048);
+  scene.add(cursorLight);
+
+  const cursorMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfff6d9 }));
+  cursorMesh.frustumCulled = false;
+  scene.add(cursorMesh);
+
+  const ray = new THREE.Raycaster();
+  const mouse = new THREE.Vector2(-10, -10);
+  let pointerActive = false;
+  let lastTime = 0;
+
+  function onPointer(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    mouse.set(x, y);
+    pointerActive = true;
+    lastTime = performance.now();
+  }
+  window.addEventListener('mousemove', onPointer, { passive:true });
+  window.addEventListener('pointerdown', onPointer, { passive:true });
+  window.addEventListener('pointerup', () => { pointerActive = false; lastTime = performance.now(); }, { passive:true });
+
+  // simple mapping: raycast to model if present else plane
+  function computeCursor3D() {
+    ray.setFromCamera(mouse, camera);
+    if (porcelain) {
+      const meshes = [];
+      modelGroup.traverse((c) => { if (c.isMesh) meshes.push(c); });
+      const ints = ray.intersectObjects(meshes, true);
+      if (ints.length > 0) return ints[0].point.clone();
+    }
+    const pints = ray.intersectObject(interactPlane, true);
+    if (pints.length > 0) return pints[0].point.clone();
+    // fallback project into view
+    return new THREE.Vector3(mouse.x, mouse.y, 0.5).unproject(camera);
+  }
+
+  // animation loop (focused, minimal distractions)
+  const clock = new THREE.Clock();
+  let autoRotate = true;
+
+  function animate() {
+    const dt = clock.getDelta();
+    const t = clock.getElapsedTime();
+
+    // subtle particle motion
+    particles.rotation.y += dt * 0.03;
+    particles.rotation.x = Math.sin(t * 0.09) * 0.04;
+
+    // cursor light dynamics
+    const now = performance.now();
+    const inactive = (now - lastTime) > 900 && !pointerActive;
+    const target3D = computeCursor3D();
+    // smooth follow
+    cursorLight.position.lerp(target3D, 0.14);
+    cursorMesh.position.lerp(target3D, 0.14);
+    // intensity depends on proximity to model center and recent pointer
+    const worldCenter = new THREE.Vector3();
+    modelGroup.getWorldPosition(worldCenter);
+    const dist = target3D.distanceTo(worldCenter);
+    const proximity = 1.0 - Math.min(1.0, dist / 12.0);
+    const activeFactor = inactive ? 0.06 : 1.0;
+    const intensity = THREE.MathUtils.lerp(cursorLight.intensity, (0.04 + proximity * 6.2) * activeFactor, 0.12);
+    cursorLight.intensity = intensity;
+    cursorMesh.scale.lerp(new THREE.Vector3(1,1,1).multiplyScalar(0.9 + proximity * 1.4), 0.12);
+
+    // gently interact with materials: lower roughness near cursor to create specular sweep
+    if (porcelain && intensity > 0.06) {
+      const meshes = [];
+      modelGroup.traverse((m) => { if (m.isMesh) meshes.push(m); });
+      for (let m of meshes) {
+        const wp = new THREE.Vector3(); m.getWorldPosition(wp);
+        const d = Math.min(1.0, m.position.distanceTo(target3D) / 6.0);
+        const effect = 1.0 - d;
+        const baseR = m.material.userData?.baseRoughness ?? 0.06;
+        const baseE = m.material.userData?.baseEnv ?? 1.25;
+        m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, Math.max(0.02, baseR * (0.2 + (1-effect)*1.0)), 0.18);
+        m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity||baseE, baseE + 1.6 * effect * (intensity / 6.2), 0.18);
+        m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || 1.0, Math.min(1.0, (m.material.userData?.baseClearcoat||1.0) + 0.6*effect), 0.18);
+        m.material.needsUpdate = true;
+      }
+    } else if (porcelain) {
+      // restore slowly
+      porcelain.traverse((m) => {
+        if (m.isMesh && m.material && m.material.userData) {
+          m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, m.material.userData.baseRoughness ?? 0.06, 0.04);
+          m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || (m.material.userData.baseEnv || 1.25), m.material.userData.baseEnv || 1.25, 0.03);
+          m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || (m.material.userData.baseClearcoat || 1.0), m.material.userData.baseClearcoat || 1.0, 0.03);
+          m.material.needsUpdate = true;
         }
+      });
+    }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+    // auto rotate group to keep composition alive but subtle
+    if (autoRotate && porcelain) modelGroup.rotation.y += dt * 0.12;
+
+    controls.update();
+    composer.render();
+    requestAnimationFrame(animate);
+  }
+
+  // simple key controls
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') autoRotate = !autoRotate;
+    if (e.code === 'KeyR') controls.reset();
+    if (e.code === 'KeyF') {
+      if (!document.fullscreenElement) container.requestFullscreen().catch(() => {});
+      else document.exitFullscreen().catch(() => {});
+    }
+  });
+
+  // UI toggles
+  const cursorLightToggle = document.getElementById('cursorLightToggle');
+  const bloomToggle = document.getElementById('bloomToggle');
+  const particlesToggle = document.getElementById('particlesToggle');
+
+  cursorLightToggle.addEventListener('change', () => {
+    cursorLight.visible = cursorMesh.visible = cursorLightToggle.checked;
+    if (!cursorLightToggle.checked) cursorLight.intensity = 0;
+  });
+  bloomToggle.addEventListener('change', () => bloom.enabled = bloomToggle.checked);
+  particlesToggle.addEventListener('change', () => particles.visible = particlesToggle.checked);
+
+  // resize
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    composer.setSize(innerWidth, innerHeight);
+  });
+
+  // start
+  requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
