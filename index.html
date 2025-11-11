@@ -1,680 +1,865 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Porcelain Transcendence — v9 proto2 (stable)</title>
-  <style>
-    * { box-sizing:border-box; margin:0; padding:0; }
-    html, body, #container { height:100%; width:100%; }
-    body{ background:#000; color:#fff; font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; overflow:hidden; }
-    #container{ position:fixed; inset:0; }
-    canvas{ display:block; touch-action:none; }
-    .ui{ position:absolute; inset:0; z-index:60; pointer-events:none; }
-    .panel{
-      pointer-events:auto; position:absolute; background:rgba(0,0,0,.45); backdrop-filter:blur(6px);
-      border:1px solid rgba(255,255,255,.06); padding:10px 12px; border-radius:10px; font-size:13px; line-height:1.4;
-    }
-    .top-left{ left:16px; top:16px; } .top-right{ right:16px; top:16px; text-align:right; } .bottom-left{ left:16px; bottom:16px; }
-    .scene-indicator{ font-weight:600; opacity:.95; } .small{ font-size:12px; opacity:.8; }
-    .loading{ position:fixed; inset:0; background:#000; display:flex; justify-content:center; align-items:center; z-index:1000; font-size:18px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Porcelain Transcendence - Developer Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            height: 100vh;
+            color: #00ff88;
+        }
+
+        #container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Developer UI */
+        .dev-ui {
+            position: fixed;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .panel {
+            background: rgba(0, 20, 10, 0.85);
+            border: 1px solid #00ff88;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .stats-panel {
+            top: 10px;
+            right: 10px;
+            min-width: 200px;
+        }
+
+        .controls-panel {
+            bottom: 10px;
+            left: 10px;
+            min-width: 300px;
+        }
+
+        .scene-panel {
+            top: 10px;
+            left: 10px;
+            min-width: 250px;
+        }
+
+        .debug-panel {
+            bottom: 10px;
+            right: 10px;
+            min-width: 280px;
+        }
+
+        h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .stat-label {
+            color: #88ffcc;
+        }
+
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .control-group {
+            margin: 10px 0;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        label {
+            font-size: 12px;
+            color: #88ffcc;
+            margin-right: 10px;
+            min-width: 120px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            background: #003322;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        button {
+            background: #002211;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            margin: 2px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #00ff88;
+            color: #002211;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .scene-button {
+            flex: 1;
+            min-width: 80px;
+        }
+
+        .log-entry {
+            font-size: 11px;
+            margin: 2px 0;
+            color: #88ffaa;
+            opacity: 0.8;
+        }
+
+        .performance-graph {
+            height: 40px;
+            background: #001a0d;
+            border: 1px solid #004422;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .graph-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #88ffcc);
+            transition: width 0.3s;
+        }
+
+        /* Loading screen */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            color: #00ff88;
+        }
+
+        .loading-bar {
+            width: 300px;
+            height: 4px;
+            background: #003322;
+            border-radius: 2px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: #00ff88;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .hotkey {
+            display: inline-block;
+            background: #002211;
+            border: 1px solid #00ff88;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin: 0 2px;
+        }
+    </style>
 </head>
 <body>
-  <div id="container" role="application" aria-label="Porcelain Transcendence canvas"></div>
-  <div class="loading" id="loading">Initializing Enhanced Engine...</div>
+    <div id="container"></div>
 
-  <div class="ui" aria-hidden="false">
-    <div class="panel top-left" role="region" aria-label="Scene information">
-      <div id="sceneLabel" class="scene-indicator" role="status" aria-live="polite">Scene 1 / 5 — Dawn Vessel</div>
-      <div class="small">← → : Change Scene • SPACE : Toggle Motion • Click : Splash / Pulse</div>
+    <!-- Loading Screen -->
+    <div class="loading" id="loading">
+        <h2>PORCELAIN TRANSCENDENCE</h2>
+        <p>Developer Edition v2.1.4</p>
+        <div class="loading-bar">
+            <div class="loading-progress" id="loadingProgress"></div>
+        </div>
+        <p id="loadingText">Initializing core systems...</p>
     </div>
-    <div class="panel top-right" role="region" aria-label="Effects toggles">
-      <label><input id="toggleBloom" type="checkbox" checked> Bloom</label><br>
-      <label><input id="toggleDOF" type="checkbox"> DOF</label><br>
-      <label><input id="toggleParticles" type="checkbox" checked> Particles</label><br>
-      <label><input id="toggleTemporal" type="checkbox"> Day/Night Cycle</label>
+
+    <!-- Developer UI -->
+    <div class="dev-ui">
+        <!-- Stats Panel -->
+        <div class="panel stats-panel">
+            <h3>Performance Metrics</h3>
+            <div class="stat">
+                <span class="stat-label">FPS:</span>
+                <span class="stat-value" id="fpsCounter">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Frame Time:</span>
+                <span class="stat-value" id="frameTime">0ms</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Triangles:</span>
+                <span class="stat-value" id="triangleCount">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Draw Calls:</span>
+                <span class="stat-value" id="drawCallCount">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Memory:</span>
+                <span class="stat-value" id="memoryUsage">0 MB</span>
+            </div>
+            <div class="performance-graph">
+                <div class="graph-bar" id="performanceGraph"></div>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="panel controls-panel">
+            <h3>Scene Controls</h3>
+            <div class="control-group">
+                <div class="control-row">
+                    <label>Auto Rotate:</label>
+                    <input type="checkbox" id="autoRotate" checked>
+                </div>
+                <div class="control-row">
+                    <label>Rotation Speed:</label>
+                    <input type="range" id="rotationSpeed" min="0" max="2" step="0.1" value="1">
+                </div>
+                <div class="control-row">
+                    <label>Bloom Intensity:</label>
+                    <input type="range" id="bloomIntensity" min="0" max="2" step="0.1" value="0.8">
+                </div>
+                <div class="control-row">
+                    <label>Exposure:</label>
+                    <input type="range" id="exposure" min="0.1" max="2" step="0.1" value="1.0">
+                </div>
+            </div>
+            <div class="button-group">
+                <button onclick="toggleWireframe()">Wireframe</button>
+                <button onclick="toggleNormals()">Show Normals</button>
+                <button onclick="toggleBounds()">Show Bounds</button>
+                <button onclick="exportScene()">Export Scene</button>
+            </div>
+        </div>
+
+        <!-- Scene Panel -->
+        <div class="panel scene-panel">
+            <h3>Scene Management</h3>
+            <div class="control-row">
+                <label>Current Scene:</label>
+                <span class="stat-value" id="currentScene">1/5</span>
+            </div>
+            <div class="button-group">
+                <button class="scene-button" onclick="switchScene(0)">Vessel</button>
+                <button class="scene-button" onclick="switchScene(1)">Plate</button>
+                <button class="scene-button" onclick="switchScene(2)">Sculpture</button>
+                <button class="scene-button" onclick="switchScene(3)">Column</button>
+                <button class="scene-button" onclick="switchScene(4)">Bowl</button>
+            </div>
+            <div class="control-row">
+                <label>Animation:</label>
+                <input type="checkbox" id="animationToggle" checked>
+            </div>
+        </div>
+
+        <!-- Debug Panel -->
+        <div class="panel debug-panel">
+            <h3>Debug Console</h3>
+            <div id="debugLog">
+                <div class="log-entry">System initialized</div>
+                <div class="log-entry">WebGL context created</div>
+                <div class="log-entry">Shader compilation complete</div>
+            </div>
+            <div class="button-group">
+                <button onclick="clearLog()">Clear Log</button>
+                <button onclick="takeScreenshot()">Screenshot</button>
+                <button onclick="toggleUI()">Hide UI</button>
+            </div>
+        </div>
     </div>
-    <div class="panel bottom-left" role="region" aria-label="Controls">
-      <div class="small">DRAG: Orbit • PINCH: Zoom • SCROLL: Chapters</div>
-      <div class="small" id="timeDisplay">Time: 12:00 PM</div>
-    </div>
-  </div>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
-    }
-  }
-  </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+        import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/OutputPass.js';
 
-  <script type="module">
-  import * as THREE from 'three';
-  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-  import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-  import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-  import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-  import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-  import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
-  import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        // Global state
+        const APP = {
+            scene: null,
+            camera: null,
+            renderer: null,
+            composer: null,
+            controls: null,
+            currentScene: 0,
+            scenes: [],
+            clock: new THREE.Clock(),
+            stats: {
+                fps: 0,
+                frameTime: 0,
+                triangles: 0,
+                drawCalls: 0
+            },
+            settings: {
+                autoRotate: true,
+                rotationSpeed: 1.0,
+                bloomIntensity: 0.8,
+                exposure: 1.0,
+                wireframe: false,
+                showNormals: false,
+                showBounds: false
+            }
+        };
 
-  // ---------- CORE ----------
-  const container = document.getElementById('container');
-  const loading = document.getElementById('loading');
-  const DPR = Math.min(window.devicePixelRatio || 1, 2);
-  const WIDTH = () => window.innerWidth, HEIGHT = () => window.innerHeight;
-  const clock = new THREE.Clock(); // make clock FIRST (used by ripples)
-
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000010);
-  scene.fog = new THREE.FogExp2(0x000010, 0.035);
-
-  const camera = new THREE.PerspectiveCamera(45, WIDTH()/HEIGHT(), 0.05, 2000);
-  camera.position.set(8, 4.5, 9);
-
-  const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
-  renderer.setPixelRatio(DPR);
-  renderer.setSize(WIDTH(), HEIGHT());
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
-  renderer.physicallyCorrectLights = true;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  container.appendChild(renderer.domElement);
-
-  // show canvas regardless of async assets
-  loading.style.display = 'none';
-
-  // ---------- CONTROLS ----------
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.maxPolarAngle = Math.PI * 0.495;
-  controls.enableZoom = false; // we zoom by dollying along view dir
-  controls.minDistance = 1.6;
-  controls.maxDistance = 40;
-
-  // ---------- POST ----------
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(WIDTH(), HEIGHT()), 0.4, 0.6, 0.86);
-  composer.addPass(bloomPass);
-
-  const bokehPass = new BokehPass(scene, camera, { focus: 20.0, aperture: 0.001, maxblur: 0.01, width: WIDTH(), height: HEIGHT() });
-  bokehPass.enabled = false;
-  composer.addPass(bokehPass);
-
-  const vignettePass = new ShaderPass({
-    uniforms: { tDiffuse:{value:null}, uStrength:{value:0.22}, uTopBoost:{value:0.18} },
-    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-    fragmentShader: `
-      uniform sampler2D tDiffuse; uniform float uStrength; uniform float uTopBoost;
-      varying vec2 vUv;
-      void main(){
-        vec4 c = texture2D(tDiffuse, vUv);
-        float d = distance(vUv, vec2(0.5));
-        float vign = smoothstep(0.8, 0.2, d);
-        float top = smoothstep(0.3, 1.0, vUv.y);
-        c.rgb *= mix(1.0, 1.0 - uStrength, vign);
-        c.rgb += top * uTopBoost;
-        gl_FragColor = c;
-      }`
-  });
-  composer.addPass(vignettePass);
-
-  // ---------- ENVIRONMENT (optional, never fatal) ----------
-  let pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader();
-  (function bakePlaceholder(){
-    const cubeUrls = new Array(6).fill('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
-    const tmp = new THREE.CubeTextureLoader().load(cubeUrls, () => {
-      const envRT = pmrem.fromCubemap(tmp).texture; scene.environment = envRT;
-      try{ tmp.dispose(); }catch(e){}
-    });
-  })();
-  new RGBELoader().setDataType(THREE.UnsignedByteType).load(
-    'textures/studio_small_04_1k.hdr',
-    (hdr)=>{ hdr.mapping = THREE.EquirectangularReflectionMapping; scene.environment = pmrem.fromEquirectangular(hdr).texture; try{ hdr.dispose&&hdr.dispose(); }catch(e){} },
-    undefined,
-    ()=>{} // ignore CORS/404 silently
-  );
-
-  // ---------- WATER (ripples) ----------
-  const WATER_MAX_RIPPLES = 8;
-  const waterUniforms = {
-    uTime:{value:0},
-    uColorDeep:{value:new THREE.Color(0x0a0f18)},
-    uColorShallow:{value:new THREE.Color(0x163453)},
-    uHorizonBoost:{value:0.32},
-    uRoughness:{value:0.22},
-    uRippleData:{value:[...Array(WATER_MAX_RIPPLES)].map(()=>new THREE.Vector4(9999,9999,-1000,0))},
-    uRippleParams:{value:new THREE.Vector4(2.2, 1.6, 0.55, 0.16)}, // freq,speed,decay,amp
-    uBigWaveAmt:{value:0.06},
-    uCenter:{value:new THREE.Vector2(0,0)},
-    uEnvStrength:{value:0.6},
-    uFogColor:{value:scene.fog.color.clone()},
-    uFogDensity:{value:scene.fog.density}
-  };
-  const waterMat = new THREE.ShaderMaterial({
-    uniforms: waterUniforms, depthWrite:true, transparent:false,
-    vertexShader: `
-      uniform float uTime; uniform vec4 uRippleParams; uniform vec4 uRippleData[${WATER_MAX_RIPPLES}];
-      uniform float uBigWaveAmt; uniform vec2 uCenter;
-      varying vec3 vWorldPos; varying vec3 vNormal; varying float vH;
-      float H(vec2 xz){
-        float h=0.0; float k=uRippleParams.x, speed=uRippleParams.y, decay=uRippleParams.z, amp=uRippleParams.w;
-        for(int i=0;i<${WATER_MAX_RIPPLES};i++){
-          vec2 c=uRippleData[i].xy; float t0=uRippleData[i].z; float s=uRippleData[i].w;
-          float r=length(xz-c); float t=max(0.0, uTime - t0);
-          h += sin(k*r - speed*k*t) * exp(-decay*r) * s * amp;
+        // Initialize the application
+        async function init() {
+            updateLoading('Creating renderer...', 20);
+            await createRenderer();
+            
+            updateLoading('Setting up scene...', 40);
+            await setupScene();
+            
+            updateLoading('Creating effects...', 60);
+            await setupPostProcessing();
+            
+            updateLoading('Loading assets...', 80);
+            await createScenes();
+            
+            updateLoading('Finalizing...', 95);
+            await finalizeSetup();
+            
+            updateLoading('Ready!', 100);
+            
+            // Hide loading screen after a brief delay
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                addLogEntry('Application ready');
+            }, 500);
+            
+            // Start animation loop
+            animate();
         }
-        h += sin((length(xz-uCenter)*0.35 - uTime*0.9))*uBigWaveAmt;
-        return h;
-      }
-      vec3 nrm(vec2 xz){
-        float e=0.25;
-        float hL=H(xz-vec2(e,0.0)), hR=H(xz+vec2(e,0.0));
-        float hD=H(xz-vec2(0.0,e)), hU=H(xz+vec2(0.0,e));
-        return normalize(vec3(hL-hR, 2.0*e, hD-hU));
-      }
-      void main(){
-        vec4 wp = modelMatrix * vec4(position,1.0);
-        vec2 xz = wp.xz;
-        float h = H(xz);
-        wp.y += h;
-        vH=h; vWorldPos=wp.xyz; vNormal=nrm(xz);
-        gl_Position = projectionMatrix * viewMatrix * wp;
-      }`,
-    fragmentShader: `
-      precision highp float;
-      varying vec3 vWorldPos; varying vec3 vNormal; varying float vH;
-      uniform vec3 uColorDeep, uColorShallow, uFogColor;
-      uniform float uHorizonBoost, uEnvStrength, uRoughness, uFogDensity;
-      float spec(vec3 n, vec3 l, vec3 v, float r){
-        vec3 h = normalize(l+v); float NdotH=max(dot(n,h),0.0); float m=max(0.08,r);
-        return pow(NdotH, mix(80.0, 220.0, 1.0-m));
-      }
-      void main(){
-        float g = clamp(0.5 + vH*5.0, 0.0, 1.0);
-        vec3 base = mix(uColorDeep, uColorShallow, g);
-        vec3 v = normalize(cameraPosition - vWorldPos);
-        float horizon = clamp((v.y*0.5 + 0.5), 0.0, 1.0);
-        base += horizon * uHorizonBoost;
 
-        vec3 n = normalize(vNormal);
-        vec3 keyDir = normalize(vec3(-0.35, 0.82, 0.28));
-        vec3 rimDir = normalize(vec3(0.25, 0.75, -0.6));
-        float keyLam = max(dot(n,keyDir),0.0);
-        float rimLam = max(dot(n,rimDir),0.0);
-        float keySpec = spec(n,keyDir,v,uRoughness);
-        float rimSpec = spec(n,rimDir,v,uRoughness);
-
-        vec3 color = base;
-        color += keyLam*0.10 + rimLam*0.06;
-        color += (keySpec*0.32 + rimSpec*0.22) * uEnvStrength;
-        float fres = pow(1.0 - max(dot(n,v),0.0), 3.0);
-        color += fres * 0.07;
-
-        float dist = length(cameraPosition - vWorldPos);
-        float fogFactor = 1.0 - exp(-uFogDensity*uFogDensity*dist*dist);
-        color = mix(color, uFogColor, fogFactor);
-        gl_FragColor = vec4(color, 1.0);
-      }`
-  });
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(1200,1200,256,256), waterMat);
-  water.rotation.x = -Math.PI/2; water.position.y = 0.0; scene.add(water);
-
-  function emitRipple(x, z, s=1.0){
-    let slot = -1;
-    for(let i=0;i<WATER_MAX_RIPPLES;i++){ if(waterUniforms.uRippleData.value[i].z < 0.0){ slot = i; break; } }
-    if(slot<0) slot = 0;
-    waterUniforms.uRippleData.value[slot].set(x, z, clock.getElapsedTime(), s);
-  }
-
-  // ---------- CURSOR LIGHT & PULSES ----------
-  function glowTex(size=512, color='#fff3d9'){
-    const c=document.createElement('canvas'); c.width=c.height=size; const ctx=c.getContext('2d'); const cx=size/2, cy=size/2;
-    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,size/2); g.addColorStop(0,color); g.addColorStop(0.25,color); g.addColorStop(0.6,'rgba(255,243,217,.45)'); g.addColorStop(1,'rgba(255,243,217,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,size,size); const t=new THREE.CanvasTexture(c); t.minFilter=t.magFilter=THREE.LinearFilter; return t;
-  }
-  const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 28, 2.2); scene.add(cursorLight);
-  const cursorBall = new THREE.Mesh(new THREE.SphereGeometry(0.06,12,12), new THREE.MeshBasicMaterial({color:0xfff3d9})); scene.add(cursorBall);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex(), blending:THREE.AdditiveBlending, transparent:true, opacity:0.65, depthWrite:false })); glow.scale.setScalar(0.8); scene.add(glow);
-
-  const pulsePool=[]; const activePulses=[];
-  function makePulse(count=80){
-    const g=new THREE.BufferGeometry(), pos=new Float32Array(count*3), vel=new Float32Array(count*3), col=new Float32Array(count*3);
-    for(let i=0;i<count;i++){ col[i*3]=1; col[i*3+1]=.9; col[i*3+2]=.8; }
-    g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setAttribute('vel', new THREE.BufferAttribute(vel,3)); g.setAttribute('color', new THREE.BufferAttribute(col,3));
-    const m=new THREE.PointsMaterial({ size:0.05, transparent:true, opacity:1, depthWrite:false, vertexColors:true, blending:THREE.AdditiveBlending });
-    const p=new THREE.Points(g,m); p.userData={ life:0, count }; return p;
-  }
-  function getPulse(c=80){ return pulsePool.length? pulsePool.pop(): makePulse(c); }
-  function recyclePulse(p){ p.visible=false; p.userData.life=0; pulsePool.push(p); }
-  function spawnPulse(pos3, color=0xfff0d8, count=80){
-    const p=getPulse(count); const pos=p.geometry.attributes.position; const vel=p.geometry.attributes.vel; const col=p.geometry.attributes.color;
-    const r=((color>>16)&255)/255, g=((color>>8)&255)/255, b=(color&255)/255;
-    for(let i=0;i<p.userData.count;i++){
-      const phi=Math.acos(2*Math.random()-1), theta=Math.random()*Math.PI*2, radius=0.02+Math.random()*0.08;
-      pos.array[i*3]=pos3.x+radius*Math.sin(phi)*Math.cos(theta);
-      pos.array[i*3+1]=pos3.y+radius*Math.cos(phi);
-      pos.array[i*3+2]=pos3.z+radius*Math.sin(phi)*Math.sin(theta);
-      vel.array[i*3]=(Math.random()-0.5)*0.9; vel.array[i*3+1]=Math.random()*1.2+0.2; vel.array[i*3+2]=(Math.random()-0.5)*0.9;
-      col.array[i*3]=r*(0.8+Math.random()*0.2); col.array[i*3+1]=g*(0.8+Math.random()*0.2); col.array[i*3+2]=b*(0.8+Math.random()*0.2);
-    }
-    pos.needsUpdate=vel.needsUpdate=col.needsUpdate=true; p.userData.life=1.0; p.visible=true; if(!p.parent) scene.add(p); activePulses.push(p);
-  }
-
-  // ---------- INSTANCED “DUST” (billboard quads) ----------
-  function createInstancedParticles(max=1200){
-    const quad=new THREE.PlaneGeometry(1,1);
-    const inst=new THREE.InstancedBufferGeometry();
-    inst.index=quad.index; inst.attributes.position=quad.attributes.position; inst.attributes.uv=quad.attributes.uv;
-
-    const offsets=new Float32Array(max*3), sizes=new Float32Array(max), hue=new Float32Array(max), phase=new Float32Array(max), drag=new Float32Array(max), vel=new Float32Array(max*3);
-    for(let i=0;i<max;i++){
-      offsets[i*3]=(Math.random()-0.5)*20; offsets[i*3+1]=Math.random()*10; offsets[i*3+2]=(Math.random()-0.5)*20;
-      sizes[i]=Math.random()*0.6+0.1; hue[i]=Math.random(); phase[i]=Math.random()*Math.PI*2; drag[i]=Math.random()*0.12+0.02;
-      vel[i*3]=(Math.random()-0.5)*0.1; vel[i*3+1]=Math.random()*0.05; vel[i*3+2]=(Math.random()-0.5)*0.1;
-    }
-    inst.setAttribute('offset', new THREE.InstancedBufferAttribute(offsets,3));
-    inst.setAttribute('sizeAttr', new THREE.InstancedBufferAttribute(sizes,1));
-    inst.setAttribute('hue', new THREE.InstancedBufferAttribute(hue,1));
-    inst.setAttribute('phase', new THREE.InstancedBufferAttribute(phase,1));
-    inst.setAttribute('drag', new THREE.InstancedBufferAttribute(drag,1));
-    inst.setAttribute('velocity', new THREE.InstancedBufferAttribute(vel,3));
-
-    const mat=new THREE.ShaderMaterial({
-      transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-      uniforms:{ uTime:{value:0}, uOpacity:{value:0.55} },
-      vertexShader:`
-        attribute vec3 offset; attribute float sizeAttr; attribute float hue; attribute float phase; attribute float drag; attribute vec3 velocity;
-        uniform float uTime; varying float vHue; varying float vAlpha; varying vec2 vUv2;
-        void main(){
-          float t = uTime*(0.2+drag);
-          vec3 pos = offset + velocity*t;
-          pos.x += sin(t*2.0+phase)*0.3;
-          pos.y += sin(t*0.7+phase*0.5)*0.2;
-          pos.z += cos(t*1.5+phase)*0.25;
-
-          vec4 mv = modelViewMatrix * vec4(pos,1.0);
-          vec2 q = position.xy * sizeAttr;
-          gl_Position = projectionMatrix * (mv + vec4(q,0.0,0.0));
-          vHue=hue; vUv2=uv; vAlpha = 0.7 + 0.3*sin(phase + hue*6.283);
-        }`,
-      fragmentShader:`
-        varying float vHue; varying float vAlpha; varying vec2 vUv2; uniform float uTime; uniform float uOpacity;
-        void main(){
-          float d = length(vUv2 - 0.5);
-          float soft = smoothstep(0.5, 0.0, d);
-          vec3 base = mix(vec3(1.0,0.92,0.85), vec3(0.82,0.9,1.0), vHue);
-          float a = soft * uOpacity * vAlpha;
-          if(a<0.02) discard;
-          gl_FragColor = vec4(base, a);
-        }`
-    });
-    const mesh=new THREE.Mesh(inst, mat); mesh.frustumCulled=false; return mesh;
-  }
-
-  // ---------- SCENE CLASS ----------
-  class PorcelainScene {
-    constructor({id=0,name='Untitled',palette,make,rail,chapters=5}={}){
-      this.id=id; this.name=name; this.palette=palette; this.make=make; this.rail=rail; this.chapters=chapters;
-      this.group=new THREE.Group(); this.porcelain=null; this.meshCache=[]; this.instancedParticles=null; this.motionEnabled=true; this.setup();
-    }
-    setup(){
-      this.group.clear(); this.meshCache.length=0;
-      this.hemi=new THREE.HemisphereLight(0xddddff,0x0a0a0d,0.45); this.group.add(this.hemi);
-      this.key=new THREE.DirectionalLight(this.palette.key||0xffffff,1.45); this.key.castShadow=true; this.key.shadow.mapSize.set(1024,1024); this.key.shadow.bias=-0.0005; this.key.position.set(6,10,6); this.group.add(this.key);
-      this.fill=new THREE.DirectionalLight(0x8fb3ff,0.4); this.fill.position.set(-6,5,-6); this.group.add(this.fill);
-      this.rim=new THREE.DirectionalLight(0xffe6d0,0.5); this.rim.position.set(0,6,-8); this.group.add(this.rim);
-
-      const p=this.make(); this.porcelain=p;
-      p.traverse((c)=>{
-        if(c.isMesh){
-          c.castShadow=c.receiveShadow=true; this.meshCache.push(c);
-          if(!(c.material && c.material.isMeshPhysicalMaterial)){
-            const base=(c.material&&c.material.color)? c.material.color.clone(): new THREE.Color(0xffffff);
-            const m=new THREE.MeshPhysicalMaterial({ color:base, roughness:0.24, clearcoat:1.0, clearcoatRoughness:0.3, envMap:scene.environment, envMapIntensity:0.6 });
-            if(c.material && c.material.map) m.map=c.material.map;
-            c.material=m; c.material.userData={ baseRoughness:m.roughness, baseEnv:m.envMapIntensity, baseClearcoat:m.clearcoat };
-          }else{
-            c.material.roughness=Math.max(0.2, c.material.roughness);
-            c.material.clearcoatRoughness = Math.max(0.25, c.material.clearcoatRoughness||0.25);
-            c.material.envMapIntensity = Math.min(0.8, c.material.envMapIntensity||0.6);
-            c.material.userData={ baseRoughness:c.material.roughness, baseEnv:c.material.envMapIntensity, baseClearcoat:c.material.clearcoat||1.0 };
-          }
+        function updateLoading(text, progress) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingProgress').style.width = `${progress}%`;
+            addLogEntry(text);
         }
-      });
-      this.group.add(p);
 
-      const dust=createInstancedParticles(1200); this.instancedParticles=dust; this.group.add(dust);
-
-      // normalize pivot & scale
-      const box=new THREE.Box3().setFromObject(this.group), center=box.getCenter(new THREE.Vector3());
-      this.group.position.sub(center);
-      const size=box.getSize(new THREE.Vector3()); const maxDim=Math.max(size.x,size.y,size.z); const target=4.6; const s=maxDim>0? target/maxDim:1;
-      this.group.scale.setScalar(s); this.group.updateWorldMatrix(true,true);
-      const box2=new THREE.Box3().setFromObject(this.group); this.group.position.y -= box2.min.y;
-    }
-    enter(railTarget){
-      gsap.to(scene.background, { r:((this.palette.bg>>16)&255)/255, g:((this.palette.bg>>8)&255)/255, b:(this.palette.bg&255)/255, duration:0.9 });
-      gsap.fromTo(this.key,{intensity:0.0},{intensity:1.45,duration:0.9,ease:'power2.out'});
-      gsap.fromTo(this.rim,{intensity:0.0},{intensity:0.5,duration:0.9,delay:0.1});
-      gsap.fromTo(this.fill,{intensity:0.0},{intensity:0.4,duration:0.9,delay:0.12});
-      gsap.fromTo(this.instancedParticles.material.uniforms.uTime||{value:0},{value:0},{duration:0});
-      gsap.fromTo(this.instancedParticles.material.uniforms?.uOpacity||{value:0},{value:0.55,duration:1.2});
-
-      if(railTarget){
-        gsap.to(camera.position,{ x:railTarget.position.x,y:railTarget.position.y,z:railTarget.position.z,duration:1.2,ease:'expo.inOut',onUpdate:()=>controls.update() });
-        gsap.to(controls.target,{ x:railTarget.target.x,y:railTarget.target.y,z:railTarget.target.z,duration:1.2,ease:'expo.inOut',onUpdate:()=>controls.update() });
-      }
-      // big water shock
-      const c=new THREE.Vector3(); this.porcelain.getWorldPosition(c); waterUniforms.uCenter.value.set(c.x,c.z); emitRipple(c.x,c.z,1.0); emitRipple(c.x,c.z,0.6);
-    }
-    exit(){
-      gsap.to(this.key,{intensity:0.0,duration:0.8,ease:'power2.in'});
-      gsap.to(this.fill,{intensity:0.0,duration:0.75});
-      gsap.to(this.rim,{intensity:0.0,duration:0.75});
-      gsap.to(this.instancedParticles.material.uniforms?.uOpacity||{},{ value:0.0, duration:0.6 });
-    }
-    update(dt, elapsed){
-      if(this.instancedParticles?.material?.uniforms?.uTime) this.instancedParticles.material.uniforms.uTime.value = elapsed;
-      if(this.motionEnabled) this.porcelain.rotation.y += dt * (0.12 + this.id*0.02);
-      // recover base sheen every frame (prevents glare runaways)
-      for(const m of this.meshCache){
-        if(!m.material?.userData) continue;
-        m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, m.material.userData.baseRoughness, 0.06);
-        m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity, m.material.userData.baseEnv, 0.05);
-        m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat, m.material.userData.baseClearcoat, 0.05);
-      }
-    }
-    toggleMotion(flag){ this.motionEnabled = flag; }
-  }
-
-  // ---------- PORCELAIN MAKERS ----------
-  function makeVesselA(){
-    const pts=[]; for(let i=0;i<20;i++){ const t=i/19; pts.push(new THREE.Vector2(0.6 + Math.sin(t*Math.PI)*0.8*(0.5+0.5*t), -1 + t*2.2)); }
-    const g=new THREE.LatheGeometry(pts,128);
-    return new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color:0xf7f8fb, roughness:0.24, clearcoat:1.0, clearcoatRoughness:0.3, envMap:scene.environment, envMapIntensity:0.6 }));
-  }
-  function makePlateB(){
-    const ring=new THREE.RingGeometry(0.5,2.0,128), bowl=new THREE.SphereGeometry(2.2,128,128,0,Math.PI*2,0,Math.PI/2); bowl.scale(1,0.38,1);
-    const mat=new THREE.MeshPhysicalMaterial({ color:0xeaf6ff, roughness:0.22, clearcoat:1.0, clearcoatRoughness:0.3, envMap:scene.environment, envMapIntensity:0.58 });
-    const g=new THREE.Group(), rim=new THREE.Mesh(ring,mat.clone()); rim.rotation.x=-Math.PI/2; rim.position.y=0.01;
-    const center=new THREE.Mesh(bowl,mat.clone()); center.position.y=0.02; g.add(center,rim); return g;
-  }
-  function makeMiniSculptC(){
-    const g=new THREE.TorusKnotGeometry(0.9,0.25,256,32,2,3); g.rotateX(Math.PI*0.1);
-    return new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color:0xffefef, roughness:0.26, clearcoat:1.0, clearcoatRoughness:0.3, envMap:scene.environment, envMapIntensity:0.6 }));
-  }
-  function makeTallCylinderD(){
-    const g=new THREE.CylinderGeometry(0.8,0.8,3.6,96,1,true);
-    return new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color:0xfffffb, roughness:0.24, clearcoat:1.0, clearcoatRoughness:0.3, envMap:scene.environment, envMapIntensity:0.6 }));
-  }
-  function makeBowlE(){
-    const g=new THREE.SphereGeometry(1.8,128,128,0,Math.PI*2,0,Math.PI/1.7); g.scale(1,0.7,1);
-    return new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color:0xe8f2ff, roughness:0.22, clearcoat:0.95, clearcoatRoughness:0.32, envMap:scene.environment, envMapIntensity:0.56 }));
-  }
-
-  // ---------- SCENES ----------
-  const scenes = [
-    new PorcelainScene({ id:0, name:'Dawn Vessel', palette:{ bg:0x05050A, key:0xfff8e8 }, make:makeVesselA, rail:{ position:new THREE.Vector3(6,3.5,6), target:new THREE.Vector3(0,1.1,0) } }),
-    new PorcelainScene({ id:1, name:'Calm Mirror', palette:{ bg:0x071022, key:0xdfefff }, make:makePlateB, rail:{ position:new THREE.Vector3(5.5,2.8,5.8), target:new THREE.Vector3(0,0.85,0) } }),
-    new PorcelainScene({ id:2, name:'Whim',        palette:{ bg:0x10040a, key:0xffefe9 }, make:makeMiniSculptC, rail:{ position:new THREE.Vector3(7,3.4,7), target:new THREE.Vector3(0,0.8,0) } }),
-    new PorcelainScene({ id:3, name:'Echo Column', palette:{ bg:0x071011, key:0xfffff6 }, make:makeTallCylinderD, rail:{ position:new THREE.Vector3(6.2,3.8,6.2), target:new THREE.Vector3(0,1.4,0) } }),
-    new PorcelainScene({ id:4, name:'Night Bloom', palette:{ bg:0x040618, key:0xe6f0ff }, make:makeBowlE, rail:{ position:new THREE.Vector3(7.5,3.6,7.8), target:new THREE.Vector3(0,0.9,0) } })
-  ];
-  let currentIndex = 0; scene.add(scenes[0].group);
-
-  // ---------- FADES (per-mesh; robust) ----------
-  function prepareFade(group){
-    group.traverse((c)=>{
-      if(c.isMesh && c.material && !c.material.__prep) {
-        c.material.__prep = true;
-        c.material.__origTransparent = c.material.transparent;
-        c.material.__origOpacity = ('opacity' in c.material)? c.material.opacity : 1.0;
-        c.material.transparent = true;
-      }
-    });
-  }
-  function fadeGroup(group, target, dur=0.9){
-    group.traverse((c)=>{ if(c.isMesh && c.material && c.material.__prep){ gsap.to(c.material, { opacity:target, duration:dur, ease:'power2.inOut' }); } });
-  }
-  function restoreFade(group){
-    group.traverse((c)=>{
-      if(c.isMesh && c.material && c.material.__prep){
-        const op = c.material.__origOpacity ?? 1.0;
-        c.material.opacity = op;
-        c.material.transparent = c.material.__origTransparent;
-        delete c.material.__origTransparent; delete c.material.__origOpacity; delete c.material.__prep;
-      }
-    });
-  }
-
-  // ---------- UI / INPUT ----------
-  const sceneLabel = document.getElementById('sceneLabel');
-  function updateSceneLabel(i){ sceneLabel.textContent = `Scene ${i+1} / 5 — ${scenes[i].name}`; }
-
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2(-10,-10);
-  const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({visible:false}));
-  interactPlane.rotation.x=-Math.PI/2; interactPlane.position.y=0; scene.add(interactPlane);
-
-  let pointerActive=false, lastInteraction=performance.now();
-  function isOverUI(e){ const el=document.elementFromPoint(e.clientX, e.clientY); return el && el.closest && el.closest('.panel'); }
-  function onMove(e){
-    if(isOverUI(e)) return;
-    const r=renderer.domElement.getBoundingClientRect();
-    mouse.x=((e.clientX-r.left)/r.width)*2-1; mouse.y=-((e.clientY-r.top)/r.height)*2+1; pointerActive=true; lastInteraction=performance.now();
-  }
-  function cursorWorld(){
-    raycaster.setFromCamera(mouse, camera);
-    const cur=scenes[currentIndex];
-    if(cur && cur.meshCache.length){
-      const h=raycaster.intersectObjects(cur.meshCache,true);
-      if(h.length) return h[0].point.clone();
-    }
-    const p=raycaster.intersectObject(interactPlane); if(p.length) return p[0].point.clone();
-    return new THREE.Vector3(mouse.x,mouse.y,0.5).unproject(camera);
-  }
-  function onDown(e){
-    if(isOverUI(e)) return; onMove(e);
-    const pos=cursorWorld(); spawnPulse(pos, 0xfff0d8, 90); emitRipple(pos.x,pos.z,0.55);
-  }
-  renderer.domElement.addEventListener('pointermove', onMove, {passive:true});
-  renderer.domElement.addEventListener('pointerdown', onDown, {passive:true});
-  renderer.domElement.addEventListener('pointerup', ()=>{ pointerActive=false; lastInteraction=performance.now(); }, {passive:true});
-
-  let scrollTarget = camera.position.distanceTo(controls.target), scrollAccum=0;
-  renderer.domElement.addEventListener('wheel', (e)=>{
-    if(isOverUI(e)) return; e.preventDefault();
-    const d=e.deltaY*0.003; scrollTarget += d*6.0; scrollTarget = THREE.MathUtils.clamp(scrollTarget, controls.minDistance, controls.maxDistance);
-    scrollAccum += e.deltaY>0?1:-1; handleChapters(scrollAccum);
-    const c=new THREE.Vector3(); scenes[currentIndex].porcelain.getWorldPosition(c); emitRipple(c.x,c.z,0.2);
-  }, {passive:false});
-
-  window.addEventListener('keydown',(e)=>{
-    const a=document.activeElement, typing=a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);
-    if(typing) return;
-    if(e.code==='ArrowRight'){ e.preventDefault(); gotoScene((currentIndex+1)%scenes.length); }
-    if(e.code==='ArrowLeft'){ e.preventDefault(); gotoScene((currentIndex-1+scenes.length)%scenes.length); }
-    if(e.code==='Space'){ e.preventDefault(); toggleMotion(); }
-  }, {passive:false});
-
-  // ---------- CHAPTERS ----------
-  function handleChapters(accum){
-    const cur=scenes[currentIndex]; if(!cur) return;
-    const maxCh=Math.max(1, cur.chapters-1);
-    const stage=Math.max(0, Math.min(maxCh, Math.floor((accum+100000)%cur.chapters)));
-    const t = stage/Math.max(1,(cur.chapters-1));
-    const u=cur.instancedParticles?.material?.uniforms;
-    if(u && u.uOpacity) gsap.to(u.uOpacity, { value:0.25 + 0.7*t, duration:0.5 });
-  }
-
-  // ---------- SCENE SWITCH ----------
-  let transitioning=false;
-  function gotoScene(index){
-    if(transitioning || index===currentIndex || index<0 || index>=scenes.length) return;
-    transitioning=true;
-    const from=scenes[currentIndex], to=scenes[index];
-    if(!to.group.parent) scene.add(to.group);
-
-    prepareFade(from.group); prepareFade(to.group);
-    to.group.traverse((c)=>{ if(c.isMesh && c.material) c.material.opacity=0.0; });
-
-    const fromC=new THREE.Vector3(); from.porcelain.getWorldPosition(fromC);
-    const toC=new THREE.Vector3(); to.porcelain.getWorldPosition(toC);
-    waterUniforms.uCenter.value.set(toC.x,toC.z);
-
-    controls.enabled=false;
-    const tl=gsap.timeline({
-      onComplete: ()=>{
-        scene.remove(from.group); restoreFade(from.group); restoreFade(to.group);
-        currentIndex=index; updateSceneLabel(index);
-        transitioning=false; controls.enabled=true;
-        emitRipple(toC.x,toC.z,1.0); emitRipple(toC.x,toC.z,0.6);
-      }
-    });
-    tl.to(camera.position, { x:to.rail.position.x, y:to.rail.position.y, z:to.rail.position.z, duration:1.15, ease:'expo.inOut', onUpdate:()=>controls.update() }, 0);
-    tl.to(controls.target, { x:to.rail.target.x, y:to.rail.target.y, z:to.rail.target.z, duration:1.15, ease:'expo.inOut', onUpdate:()=>controls.update() }, 0);
-    tl.add(()=>from.exit(), 0.02);
-    tl.add(()=>to.enter(to.rail), 0.02);
-    tl.add(()=>fadeGroup(from.group, 0.0, 0.9), 0.04);
-    tl.add(()=>fadeGroup(to.group,   1.0, 1.0), 0.06);
-    tl.add(()=>emitRipple(fromC.x,fromC.z,0.7), 0.08);
-    tl.add(()=>emitRipple(toC.x,toC.z,1.2), 0.20);
-  }
-
-  let globalMotion=true; function toggleMotion(){ globalMotion=!globalMotion; scenes.forEach(s=>s.toggleMotion(globalMotion)); }
-
-  // ---------- TEMPORAL (day/night) ----------
-  const temporal = { enabled:false, t:0.5, speed:0.01 };
-  function updateTemporal(dt){
-    if(!temporal.enabled) return 1.0;
-    temporal.t=(temporal.t + dt*temporal.speed) % 1.0;
-    const hours=Math.floor(temporal.t*24), minutes=Math.floor((temporal.t*24*60)%60), ap=hours>=12?'PM':'AM', hh=hours%12||12;
-    document.getElementById('timeDisplay').textContent=`Time: ${hh}:${String(minutes).padStart(2,'0')} ${ap}`;
-    const day = Math.max(0.0, Math.sin(temporal.t*Math.PI)); // 0 night → 1 noon
-    vignettePass.uniforms.uTopBoost.value = 0.10 + 0.25*day;
-    waterUniforms.uHorizonBoost.value = 0.22 + 0.28*day;
-    return 0.9 + 0.3*day;
-  }
-
-  // ---------- UI TOGGLES ----------
-  document.getElementById('toggleBloom').addEventListener('change',(e)=>{ bloomPass.enabled=e.target.checked; });
-  document.getElementById('toggleDOF').addEventListener('change',(e)=>{ bokehPass.enabled=e.target.checked; });
-  document.getElementById('toggleParticles').addEventListener('change',(e)=>{ scenes.forEach(s=>{ if(s.instancedParticles) s.instancedParticles.visible=e.target.checked; }); });
-  document.getElementById('toggleTemporal').addEventListener('change',(e)=>{ temporal.enabled=e.target.checked; });
-
-  // ---------- RESIZE ----------
-  function resize(){
-    const w=WIDTH(), h=HEIGHT();
-    renderer.setSize(w,h);
-    camera.aspect=w/h; camera.updateProjectionMatrix();
-    composer.setSize(w,h);
-    try{
-      if(bokehPass?.materialBokeh?.uniforms?.aspect) bokehPass.materialBokeh.uniforms.aspect.value = camera.aspect;
-      else if(bokehPass?.uniforms){ bokehPass.uniforms['width'].value=w; bokehPass.uniforms['height'].value=h; }
-    }catch(e){}
-  }
-  window.addEventListener('resize', resize);
-
-  // ---------- START ----------
-  scene.add(scenes[0].group);
-  scenes[0].enter(scenes[0].rail);
-  updateSceneLabel(0);
-
-  // ---------- LOOP ----------
-  let prevAngle = controls.getAzimuthalAngle();
-  function animate(){
-    const dt=Math.min(0.05, clock.getDelta()), elapsed=clock.getElapsedTime();
-    const tf = updateTemporal(dt);
-
-    // smooth dolly zoom
-    const camDir=new THREE.Vector3(); camera.getWorldDirection(camDir);
-    const desired=THREE.MathUtils.lerp(camera.position.distanceTo(controls.target), scrollTarget, 0.06);
-    const dist=THREE.MathUtils.clamp(desired, controls.minDistance, controls.maxDistance);
-    const newPos=new THREE.Vector3().copy(camDir).multiplyScalar(-dist).add(controls.target);
-    camera.position.lerp(newPos, 0.08);
-
-    // cursor + light
-    let cw=null, cInt=0;
-    if(mouse.x>-9){
-      raycaster.setFromCamera(mouse, camera);
-      const cur=scenes[currentIndex];
-      if(cur && cur.meshCache.length){
-        const hit=raycaster.intersectObjects(cur.meshCache,true);
-        if(hit.length){
-          cw=hit[0].point.clone();
-          const nd=hit[0].face ? hit[0].face.normal.clone().transformDirection(hit[0].object.matrixWorld) : new THREE.Vector3(0,1,0);
-          const viewTo= new THREE.Vector3().subVectors(camera.position, cw).normalize();
-          cInt = THREE.MathUtils.clamp((1.0 - (hit[0].distance/10.0))*Math.max(0, nd.dot(viewTo)), 0.0, 1.0);
+        function addLogEntry(message) {
+            const log = document.getElementById('debugLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
         }
-      }
-      if(!cw){ const p=raycaster.intersectObject(interactPlane); if(p.length) cw=p[0].point.clone(); }
-    }
-    const idle=(performance.now()-lastInteraction)>900; if(idle) pointerActive=false;
-    if(cw && !idle){
-      const camDist=camera.position.distanceTo(cw), camFactor=THREE.MathUtils.clamp(8.0/Math.max(0.001,camDist),0,1);
-      const intended=THREE.MathUtils.clamp((0.04 + cInt*1.4)*camFactor, 0.04, 1.6);
-      cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, intended, 0.12);
-      cursorLight.position.lerp(cw, 0.18); cursorBall.position.lerp(cw, 0.18);
-      glow.position.lerp(new THREE.Vector3().copy(cw).add(new THREE.Vector3().subVectors(camera.position,cw).setLength(0.06)), 0.18);
-      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.65*(cInt*0.85+0.15), 0.12);
-      glow.scale.setScalar(THREE.MathUtils.lerp(glow.scale.x, 0.3 + cInt*1.6*camFactor, 0.12));
-    }else{
-      cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, 0.0, 0.06);
-      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.0, 0.05);
-    }
 
-    // pulses update
-    for(let i=activePulses.length-1;i>=0;i--){
-      const p=activePulses[i]; p.userData.life -= dt*0.8;
-      const pos=p.geometry.attributes.position, vel=p.geometry.attributes.vel;
-      for(let v=0; v<pos.count; v++){
-        pos.array[v*3]+=vel.array[v*3]*dt;
-        pos.array[v*3+1]+=vel.array[v*3+1]*dt;
-        pos.array[v*3+2]+=vel.array[v*3+2]*dt;
-        vel.array[v*3+1]-=dt*0.9;
-      }
-      pos.needsUpdate=vel.needsUpdate=true; p.material.opacity=Math.max(0,p.userData.life);
-      if(p.userData.life<=0){ const idx=activePulses.indexOf(p); if(idx!==-1) activePulses.splice(idx,1); if(p.parent) p.parent.remove(p); recyclePulse(p); }
-    }
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+            addLogEntry('Log cleared');
+        }
 
-    // scene
-    scenes[currentIndex].update(dt, elapsed);
+        async function createRenderer() {
+            // Create WebGL renderer with advanced settings
+            APP.renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                powerPreference: "high-performance",
+                alpha: true
+            });
+            
+            APP.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            APP.renderer.setSize(window.innerWidth, window.innerHeight);
+            APP.renderer.outputColorSpace = THREE.SRGBColorSpace;
+            APP.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            APP.renderer.toneMappingExposure = APP.settings.exposure;
+            APP.renderer.shadowMap.enabled = true;
+            APP.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            document.getElementById('container').appendChild(APP.renderer.domElement);
+            
+            addLogEntry('Renderer created with advanced settings');
+        }
 
-    // water drive + orbit ripples
-    waterUniforms.uTime.value=elapsed;
-    const c=new THREE.Vector3(); scenes[currentIndex].porcelain.getWorldPosition(c); waterUniforms.uCenter.value.set(c.x,c.z);
-    const ang=controls.getAzimuthalAngle(); const dA=Math.abs(THREE.MathUtils.deltaAngle(ang, prevAngle));
-    if(dA>0.004) emitRipple(c.x + Math.sin(ang)*0.2, c.z + Math.cos(ang)*0.2, THREE.MathUtils.clamp(dA*7.0, 0.08, 0.3));
-    prevAngle=ang;
+        async function setupScene() {
+            // Create main scene
+            APP.scene = new THREE.Scene();
+            APP.scene.background = new THREE.Color(0x000511);
+            APP.scene.fog = new THREE.Fog(0x000511, 10, 50);
 
-    controls.update();
-    composer.render();
-    requestAnimationFrame(animate);
-  }
-  requestAnimationFrame(animate);
+            // Create camera
+            APP.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            APP.camera.position.set(8, 5, 12);
 
-  // ---------- UI hook ----------
-  window.gotoScene = gotoScene;
+            // Create controls
+            APP.controls = new OrbitControls(APP.camera, APP.renderer.domElement);
+            APP.controls.enableDamping = true;
+            APP.controls.dampingFactor = 0.05;
+            APP.controls.minDistance = 3;
+            APP.controls.maxDistance = 50;
+            APP.controls.autoRotate = APP.settings.autoRotate;
+            APP.controls.autoRotateSpeed = APP.settings.rotationSpeed;
 
-  // toggles
-  window.toggleMotion = ()=>{ globalMotion=!globalMotion; scenes.forEach(s=>s.toggleMotion(globalMotion)); };
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0x404060, 0.4);
+            APP.scene.add(ambientLight);
 
-  // initial label
-  updateSceneLabel(0);
+            // Add directional light
+            const directionalLight = new THREE.DirectionalLight(0xfff0e0, 1.2);
+            directionalLight.position.set(10, 15, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            APP.scene.add(directionalLight);
 
-  // ---------- RESIZE INIT ----------
-  function bootResize(){ const w=WIDTH(), h=HEIGHT(); renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); composer.setSize(w,h); }
-  bootResize();
-  window.addEventListener('resize', resize);
-  </script>
+            // Add hemisphere light for natural lighting
+            const hemisphereLight = new THREE.HemisphereLight(0x4488ff, 0x224433, 0.3);
+            APP.scene.add(hemisphereLight);
+
+            addLogEntry('Scene setup complete');
+        }
+
+        async function setupPostProcessing() {
+            // Create effect composer
+            APP.composer = new EffectComposer(APP.renderer);
+            
+            // Add render pass
+            const renderPass = new RenderPass(APP.scene, APP.camera);
+            APP.composer.addPass(renderPass);
+            
+            // Add bloom pass
+            APP.bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                APP.settings.bloomIntensity,
+                0.4,
+                0.85
+            );
+            APP.composer.addPass(APP.bloomPass);
+            
+            // Add output pass
+            const outputPass = new OutputPass();
+            APP.composer.addPass(outputPass);
+            
+            addLogEntry('Post-processing pipeline established');
+        }
+
+        async function createScenes() {
+            // Create 5 different porcelain scenes
+            const sceneConfigs = [
+                { name: "Dawn Vessel", color: 0xffeebb, scale: 1.2 },
+                { name: "Calm Plate", color: 0xbbeeff, scale: 1.0 },
+                { name: "Whim Sculpture", color: 0xffbbee, scale: 0.8 },
+                { name: "Echo Column", color: 0xeeffbb, scale: 1.5 },
+                { name: "Night Bloom", color: 0xbbffee, scale: 1.1 }
+            ];
+
+            for (let i = 0; i < sceneConfigs.length; i++) {
+                const config = sceneConfigs[i];
+                const sceneGroup = new THREE.Group();
+                
+                // Create porcelain geometry based on scene type
+                let geometry;
+                switch(i) {
+                    case 0: // Vessel
+                        geometry = createVesselGeometry();
+                        break;
+                    case 1: // Plate
+                        geometry = createPlateGeometry();
+                        break;
+                    case 2: // Sculpture
+                        geometry = createSculptureGeometry();
+                        break;
+                    case 3: // Column
+                        geometry = createColumnGeometry();
+                        break;
+                    case 4: // Bowl
+                        geometry = createBowlGeometry();
+                        break;
+                }
+                
+                // Create advanced porcelain material
+                const material = new THREE.MeshPhysicalMaterial({
+                    color: config.color,
+                    roughness: 0.1,
+                    metalness: 0.0,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.05,
+                    transmission: 0.2,
+                    thickness: 0.5,
+                    envMapIntensity: 1.2
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.scale.setScalar(config.scale);
+                
+                sceneGroup.add(mesh);
+                
+                // Add decorative elements
+                addDecorativeElements(sceneGroup, i);
+                
+                // Store scene data
+                APP.scenes.push({
+                    group: sceneGroup,
+                    mesh: mesh,
+                    config: config,
+                    animation: {
+                        rotationSpeed: 0.5 + Math.random() * 1.0,
+                        floatHeight: 0.1 + Math.random() * 0.3,
+                        floatSpeed: 1 + Math.random() * 2
+                    }
+                });
+                
+                addLogEntry(`Created scene: ${config.name}`);
+            }
+            
+            // Add first scene to render
+            APP.scene.add(APP.scenes[0].group);
+        }
+
+        function createVesselGeometry() {
+            const points = [];
+            for (let i = 0; i <= 20; i++) {
+                const t = i / 20;
+                const x = Math.sin(t * Math.PI) * 2;
+                const y = (t - 0.5) * 4;
+                points.push(new THREE.Vector2(x, y));
+            }
+            return new THREE.LatheGeometry(points, 32);
+        }
+
+        function createPlateGeometry() {
+            const geometry = new THREE.CylinderGeometry(3, 3, 0.3, 64);
+            geometry.rotateX(Math.PI / 2);
+            return geometry;
+        }
+
+        function createSculptureGeometry() {
+            const geometry = new THREE.TorusKnotGeometry(1, 0.3, 128, 32);
+            return geometry;
+        }
+
+        function createColumnGeometry() {
+            const geometry = new THREE.CylinderGeometry(1, 1.2, 4, 32);
+            return geometry;
+        }
+
+        function createBowlGeometry() {
+            const geometry = new THREE.SphereGeometry(2, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            return geometry;
+        }
+
+        function addDecorativeElements(sceneGroup, sceneIndex) {
+            // Add particle system
+            const particleCount = 200 + sceneIndex * 50;
+            const particles = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                // Position particles in a sphere around the object
+                const radius = 3 + Math.random() * 2;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                positions[i3] = Math.sin(phi) * Math.cos(theta) * radius;
+                positions[i3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
+                positions[i3 + 2] = Math.cos(phi) * radius;
+                
+                // Color based on scene index
+                const hue = (sceneIndex * 72) / 360;
+                const color = new THREE.Color().setHSL(hue, 0.7, 0.6);
+                colors[i3] = color.r;
+                colors[i3 + 1] = color.g;
+                colors[i3 + 2] = color.b;
+            }
+            
+            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.1,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.6
+            });
+            
+            const particleSystem = new THREE.Points(particles, particleMaterial);
+            sceneGroup.add(particleSystem);
+        }
+
+        async function finalizeSetup() {
+            // Add window resize handler
+            window.addEventListener('resize', onWindowResize);
+            
+            // Add keyboard controls
+            window.addEventListener('keydown', onKeyDown);
+            
+            // Initialize UI controls
+            initializeUIControls();
+            
+            addLogEntry('All systems initialized');
+        }
+
+        function onWindowResize() {
+            APP.camera.aspect = window.innerWidth / window.innerHeight;
+            APP.camera.updateProjectionMatrix();
+            APP.renderer.setSize(window.innerWidth, window.innerHeight);
+            APP.composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onKeyDown(event) {
+            switch(event.key) {
+                case 'ArrowRight':
+                    switchScene((APP.currentScene + 1) % APP.scenes.length);
+                    break;
+                case 'ArrowLeft':
+                    switchScene((APP.currentScene - 1 + APP.scenes.length) % APP.scenes.length);
+                    break;
+                case ' ':
+                    toggleAnimation();
+                    break;
+                case 'r':
+                    resetCamera();
+                    break;
+                case '1': case '2': case '3': case '4': case '5':
+                    switchScene(parseInt(event.key) - 1);
+                    break;
+            }
+        }
+
+        function switchScene(index) {
+            if (index === APP.currentScene || index < 0 || index >= APP.scenes.length) return;
+            
+            // Remove current scene
+            APP.scene.remove(APP.scenes[APP.currentScene].group);
+            
+            // Add new scene
+            APP.scene.add(APP.scenes[index].group);
+            APP.currentScene = index;
+            
+            // Update UI
+            document.getElementById('currentScene').textContent = `${index + 1}/${APP.scenes.length}`;
+            
+            addLogEntry(`Switched to scene: ${APP.scenes[index].config.name}`);
+        }
+
+        function toggleAnimation() {
+            APP.settings.autoRotate = !APP.settings.autoRotate;
+            APP.controls.autoRotate = APP.settings.autoRotate;
+            document.getElementById('animationToggle').checked = APP.settings.autoRotate;
+            addLogEntry(`Animation ${APP.settings.autoRotate ? 'enabled' : 'disabled'}`);
+        }
+
+        function resetCamera() {
+            APP.controls.reset();
+            addLogEntry('Camera reset');
+        }
+
+        function initializeUIControls() {
+            // Auto rotate
+            document.getElementById('autoRotate').addEventListener('change', (e) => {
+                APP.settings.autoRotate = e.target.checked;
+                APP.controls.autoRotate = APP.settings.autoRotate;
+            });
+            
+            // Rotation speed
+            document.getElementById('rotationSpeed').addEventListener('input', (e) => {
+                APP.settings.rotationSpeed = parseFloat(e.target.value);
+                APP.controls.autoRotateSpeed = APP.settings.rotationSpeed;
+            });
+            
+            // Bloom intensity
+            document.getElementById('bloomIntensity').addEventListener('input', (e) => {
+                APP.settings.bloomIntensity = parseFloat(e.target.value);
+                APP.bloomPass.strength = APP.settings.bloomIntensity;
+            });
+            
+            // Exposure
+            document.getElementById('exposure').addEventListener('input', (e) => {
+                APP.settings.exposure = parseFloat(e.target.value);
+                APP.renderer.toneMappingExposure = APP.settings.exposure;
+            });
+            
+            // Animation toggle
+            document.getElementById('animationToggle').addEventListener('change', (e) => {
+                toggleAnimation();
+            });
+        }
+
+        // Utility functions
+        function toggleWireframe() {
+            APP.settings.wireframe = !APP.settings.wireframe;
+            APP.scenes.forEach(scene => {
+                scene.mesh.material.wireframe = APP.settings.wireframe;
+            });
+            addLogEntry(`Wireframe ${APP.settings.wireframe ? 'enabled' : 'disabled'}`);
+        }
+
+        function toggleNormals() {
+            APP.settings.showNormals = !APP.settings.showNormals;
+            // Implementation for normal visualization would go here
+            addLogEntry(`Normals visualization ${APP.settings.showNormals ? 'enabled' : 'disabled'}`);
+        }
+
+        function toggleBounds() {
+            APP.settings.showBounds = !APP.settings.showBounds;
+            // Implementation for bounds visualization would go here
+            addLogEntry(`Bounds visualization ${APP.settings.showBounds ? 'enabled' : 'disabled'}`);
+        }
+
+        function exportScene() {
+            // Implementation for scene export would go here
+            addLogEntry('Scene export initiated');
+        }
+
+        function takeScreenshot() {
+            APP.renderer.domElement.toBlob(function(blob) {
+                const a = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                a.href = url;
+                a.download = `porcelain-scene-${new Date().getTime()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+            addLogEntry('Screenshot saved');
+        }
+
+        function toggleUI() {
+            const ui = document.querySelector('.dev-ui');
+            ui.style.display = ui.style.display === 'none' ? 'block' : 'none';
+            addLogEntry(`UI ${ui.style.display === 'none' ? 'hidden' : 'shown'}`);
+        }
+
+        // Animation and rendering
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = APP.clock.getDelta();
+            const elapsed = APP.clock.getElapsedTime();
+            
+            // Update controls
+            APP.controls.update();
+            
+            // Update current scene animation
+            const currentScene = APP.scenes[APP.currentScene];
+            if (currentScene) {
+                // Float animation
+                currentScene.group.position.y = Math.sin(elapsed * currentScene.animation.floatSpeed) * currentScene.animation.floatHeight;
+                
+                // Gentle rotation
+                if (!APP.controls.autoRotate) {
+                    currentScene.group.rotation.y += delta * currentScene.animation.rotationSpeed * 0.1;
+                }
+                
+                // Particle animation
+                const particles = currentScene.group.children.find(child => child.isPoints);
+                if (particles) {
+                    particles.rotation.y += delta * 0.2;
+                }
+            }
+            
+            // Update stats
+            updateStats();
+            
+            // Render
+            APP.composer.render();
+        }
+
+        function updateStats() {
+            const now = performance.now();
+            
+            // Calculate FPS
+            if (!APP.stats.lastTime) APP.stats.lastTime = now;
+            const deltaTime = now - APP.stats.lastTime;
+            if (deltaTime > 1000) {
+                APP.stats.fps = Math.round(1000 / APP.stats.frameTime);
+                APP.stats.lastTime = now;
+            }
+            APP.stats.frameTime = deltaTime;
+            
+            // Update triangle count (simplified)
+            APP.stats.triangles = APP.renderer.info.render.triangles;
+            APP.stats.drawCalls = APP.renderer.info.render.calls;
+            
+            // Update UI
+            document.getElementById('fpsCounter').textContent = APP.stats.fps;
+            document.getElementById('frameTime').textContent = `${APP.stats.frameTime.toFixed(1)}ms`;
+            document.getElementById('triangleCount').textContent = APP.stats.triangles.toLocaleString();
+            document.getElementById('drawCallCount').textContent = APP.stats.drawCalls;
+            document.getElementById('memoryUsage').textContent = (performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(1) : 'N/A') + ' MB';
+            
+            // Update performance graph
+            const performancePercent = Math.min(100, (APP.stats.frameTime / 16.67) * 100);
+            document.getElementById('performanceGraph').style.width = `${performancePercent}%`;
+        }
+
+        // Start the application
+        init().catch(console.error);
+
+        // Make functions globally available for UI
+        window.toggleWireframe = toggleWireframe;
+        window.toggleNormals = toggleNormals;
+        window.toggleBounds = toggleBounds;
+        window.exportScene = exportScene;
+        window.switchScene = switchScene;
+        window.takeScreenshot = takeScreenshot;
+        window.toggleUI = toggleUI;
+        window.clearLog = clearLog;
+    </script>
 </body>
 </html>
