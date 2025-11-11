@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Porcelain Master</title>
+    <title>PP001 - Porcelain Illumination</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -30,6 +30,7 @@
             font-size: 12px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
         }
         .loading {
             position: fixed;
@@ -42,21 +43,36 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            font-size: 18px;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 11px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            line-height: 1.4;
         }
     </style>
 </head>
 <body>
     <div id="container"></div>
-    <div class="ui">Drag to orbit • Scroll to zoom • Space to rotate</div>
-    <div class="loading" id="loading">Loading porcelain...</div>
+    <div class="ui">PP001 ACTIVE • DRAG: ORBIT • SCROLL: ZOOM • SPACE: ROTATE</div>
+    <div class="controls">
+        SPACE: Auto-rotate • R: Reset camera • 1-4: Material presets
+    </div>
+    <div class="loading" id="loading">Loading PP001...</div>
 
     <script type="module">
         import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
         import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js';
         import { GLTFLoader } from 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js';
 
-        // Simple reliable setup
-        class PorcelainViewer {
+        class PP001Porcelain {
             constructor() {
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -65,6 +81,10 @@
                 this.porcelain = null;
                 this.autoRotate = true;
                 
+                // Mathematical properties
+                this.goldenRatio = (1 + Math.sqrt(5)) / 2;
+                this.fibonacciAngle = Math.PI * 2 * this.goldenRatio;
+                
                 this.init();
             }
 
@@ -72,8 +92,8 @@
                 this.setupRenderer();
                 this.setupCamera();
                 this.setupControls();
-                this.setupLighting();
-                this.setupEnvironment();
+                this.setupMathematicalLighting();
+                this.setupGeometricEnvironment();
                 this.loadModel();
                 this.animate();
                 this.setupEvents();
@@ -84,62 +104,131 @@
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 this.renderer.outputColorSpace = THREE.SRGBColorSpace;
                 this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                this.renderer.toneMappingExposure = 1.2;
+                this.renderer.toneMappingExposure = 1.0;
                 this.renderer.shadowMap.enabled = true;
                 this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
                 document.getElementById('container').appendChild(this.renderer.domElement);
             }
 
             setupCamera() {
-                this.camera.position.set(8, 5, 8);
-                this.camera.lookAt(0, 2, 0);
+                this.camera.position.set(6, 4, 6);
+                this.camera.lookAt(0, 1, 0);
             }
 
             setupControls() {
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
                 this.controls.dampingFactor = 0.05;
-                this.controls.minDistance = 3;
-                this.controls.maxDistance = 20;
+                this.controls.minDistance = 2;
+                this.controls.maxDistance = 15;
+                this.controls.target.set(0, 1, 0);
             }
 
-            setupLighting() {
-                // Main key light - bright and direct
-                const keyLight = new THREE.DirectionalLight(0xffffff, 3);
-                keyLight.position.set(10, 15, 5);
-                keyLight.castShadow = true;
-                keyLight.shadow.mapSize.width = 2048;
-                keyLight.shadow.mapSize.height = 2048;
-                this.scene.add(keyLight);
+            setupMathematicalLighting() {
+                // Fibonacci-distributed point lights for perfect coverage
+                const lightCount = 8;
+                const radius = 12;
+                
+                for (let i = 0; i < lightCount; i++) {
+                    // Fibonacci spiral distribution
+                    const theta = i * this.fibonacciAngle;
+                    const r = radius * Math.sqrt(i / lightCount);
+                    const x = r * Math.cos(theta);
+                    const z = r * Math.sin(theta);
+                    const y = 8 + Math.sin(theta * 3) * 2; // Sine wave height variation
+                    
+                    const intensity = 1.5 + Math.sin(theta) * 0.5;
+                    const color = new THREE.Color().setHSL(i / lightCount, 0.7, 0.6);
+                    
+                    const light = new THREE.PointLight(color, intensity, 20);
+                    light.position.set(x, y, z);
+                    light.castShadow = true;
+                    this.scene.add(light);
+                }
 
-                // Fill light - soft blue from side
-                const fillLight = new THREE.DirectionalLight(0x4a6cff, 1.5);
-                fillLight.position.set(-8, 5, -5);
+                // Main directional light - mathematically positioned
+                const mainLight = new THREE.DirectionalLight(0xffffff, 2.5);
+                mainLight.position.set(
+                    10 * Math.cos(Math.PI/4),
+                    12,
+                    10 * Math.sin(Math.PI/4)
+                );
+                mainLight.castShadow = true;
+                mainLight.shadow.mapSize.width = 2048;
+                mainLight.shadow.mapSize.height = 2048;
+                mainLight.shadow.camera.near = 0.5;
+                mainLight.shadow.camera.far = 50;
+                this.scene.add(mainLight);
+
+                // Fill light using inverse square law positioning
+                const fillLight = new THREE.DirectionalLight(0x4a6cff, 1.2);
+                fillLight.position.set(-8, 6, -6);
                 this.scene.add(fillLight);
 
-                // Rim light - warm accent from back
-                const rimLight = new THREE.DirectionalLight(0xff9d6b, 1);
-                rimLight.position.set(0, 8, -10);
-                this.scene.add(rimLight);
-
-                // Ambient overall light
-                const ambient = new THREE.AmbientLight(0x404080, 0.6);
+                // Ambient with golden ratio influenced color
+                const ambient = new THREE.AmbientLight(0x404080, 0.4);
                 this.scene.add(ambient);
             }
 
-            setupEnvironment() {
-                // Simple ground plane
-                const ground = new THREE.Mesh(
-                    new THREE.CircleGeometry(15, 32),
-                    new THREE.MeshStandardMaterial({ 
-                        color: 0x222233,
-                        roughness: 0.8,
-                        metalness: 0.1
-                    })
-                );
+            setupGeometricEnvironment() {
+                // Ground plane with concentric circles
+                const groundGeometry = new THREE.CircleGeometry(10, 64);
+                const groundMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x111122,
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
                 ground.rotation.x = -Math.PI / 2;
                 ground.receiveShadow = true;
                 this.scene.add(ground);
+
+                // Grid helper with mathematical precision
+                const grid = new THREE.GridHelper(20, 20, 0x444466, 0x222244);
+                grid.position.y = 0.01;
+                this.scene.add(grid);
+            }
+
+            createMathematicalParticles() {
+                // Fibonacci sphere particle distribution
+                const particleCount = 500;
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(particleCount * 3);
+                const colors = new Float32Array(particleCount * 3);
+
+                for (let i = 0; i < particleCount; i++) {
+                    const i3 = i * 3;
+                    // Fibonacci sphere algorithm
+                    const y = 1 - (i / (particleCount - 1)) * 2;
+                    const radius = Math.sqrt(1 - y * y);
+                    const theta = this.fibonacciAngle * i;
+                    
+                    positions[i3] = radius * Math.cos(theta) * 8;
+                    positions[i3 + 1] = y * 6 + 4;
+                    positions[i3 + 2] = radius * Math.sin(theta) * 8;
+                    
+                    // Color based on spherical coordinates
+                    const hue = (theta / (Math.PI * 2)) % 1;
+                    const color = new THREE.Color().setHSL(hue, 0.7, 0.6);
+                    colors[i3] = color.r;
+                    colors[i3 + 1] = color.g;
+                    colors[i3 + 2] = color.b;
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                const material = new THREE.PointsMaterial({
+                    size: 0.1,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.6,
+                    blending: THREE.AdditiveBlending
+                });
+
+                const particles = new THREE.Points(geometry, material);
+                this.scene.add(particles);
+                this.particles = particles;
             }
 
             loadModel() {
@@ -151,62 +240,77 @@
                     (gltf) => {
                         this.porcelain = gltf.scene;
                         this.setupPorcelain();
+                        this.createMathematicalParticles();
                         loading.style.display = 'none';
                     },
                     (progress) => {
-                        // Simple progress feedback
                         if (progress.lengthComputable) {
                             const percent = (progress.loaded / progress.total) * 100;
-                            loading.textContent = `Loading: ${Math.round(percent)}%`;
+                            loading.textContent = `PP001 Loading: ${Math.round(percent)}%`;
                         }
                     },
                     (error) => {
-                        console.error('Error loading model:', error);
-                        loading.innerHTML = 'Error loading model. Check console.';
+                        console.error('PP001 Error:', error);
+                        loading.innerHTML = 'PP001: Model not found';
                         loading.style.color = '#ff6b6b';
                     }
                 );
             }
 
             setupPorcelain() {
-                // Enable shadows
                 this.porcelain.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
                         
-                        // Enhance materials for porcelain look
                         if (child.material) {
-                            child.material.roughness = 0.1;
-                            child.material.metalness = 0.0;
+                            // Professional porcelain material
+                            child.material.roughness = 0.08;
+                            child.material.metalness = 0.02;
+                            child.material.envMapIntensity = 1.2;
                         }
                     }
                 });
 
-                // Center and scale
+                // Mathematical centering and scaling
                 const box = new THREE.Box3().setFromObject(this.porcelain);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 
                 this.porcelain.position.sub(center);
-                this.porcelain.position.y += 2;
+                this.porcelain.position.y += 1.5; // Elevated presentation
                 
-                const scale = 4 / Math.max(size.x, size.y, size.z);
+                const scale = 3.5 / Math.max(size.x, size.y, size.z);
                 this.porcelain.scale.setScalar(scale);
 
                 this.scene.add(this.porcelain);
             }
 
             setupEvents() {
-                // Keyboard controls
                 document.addEventListener('keydown', (e) => {
-                    if (e.code === 'Space') {
-                        e.preventDefault();
-                        this.autoRotate = !this.autoRotate;
+                    switch(e.code) {
+                        case 'Space':
+                            e.preventDefault();
+                            this.autoRotate = !this.autoRotate;
+                            break;
+                        case 'KeyR':
+                            this.controls.reset();
+                            break;
+                        case 'Digit1':
+                            this.setMaterialPreset('porcelain');
+                            break;
+                        case 'Digit2':
+                            this.setMaterialPreset('ceramic');
+                            break;
+                        case 'Digit3':
+                            this.setMaterialPreset('glossy');
+                            break;
+                        case 'Digit4':
+                            this.setMaterialPreset('matte');
+                            break;
                     }
                 });
 
-                // Resize handling
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
                     this.camera.updateProjectionMatrix();
@@ -214,21 +318,64 @@
                 });
             }
 
+            setMaterialPreset(preset) {
+                if (!this.porcelain) return;
+                
+                this.porcelain.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        switch(preset) {
+                            case 'porcelain':
+                                child.material.roughness = 0.08;
+                                child.material.metalness = 0.02;
+                                break;
+                            case 'ceramic':
+                                child.material.roughness = 0.3;
+                                child.material.metalness = 0.0;
+                                break;
+                            case 'glossy':
+                                child.material.roughness = 0.02;
+                                child.material.metalness = 0.1;
+                                break;
+                            case 'matte':
+                                child.material.roughness = 0.8;
+                                child.material.metalness = 0.0;
+                                break;
+                        }
+                    }
+                });
+            }
+
             animate() {
                 requestAnimationFrame(() => this.animate());
 
+                const time = Date.now() * 0.001;
+
                 // Smooth auto-rotation
                 if (this.autoRotate && this.porcelain) {
-                    this.porcelain.rotation.y += 0.005;
+                    this.porcelain.rotation.y += 0.004;
                 }
+
+                // Mathematical particle animation
+                if (this.particles) {
+                    this.particles.rotation.y = time * 0.1;
+                    this.particles.rotation.x = Math.sin(time * 0.2) * 0.1;
+                }
+
+                // Dynamic lighting effects
+                this.scene.traverse((child) => {
+                    if (child.isPointLight) {
+                        // Subtle light animation using sine waves
+                        child.intensity = 1.5 + Math.sin(time + child.position.x) * 0.3;
+                    }
+                });
 
                 this.controls.update();
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
-        // Start the viewer
-        new PorcelainViewer();
+        // Initialize PP001
+        new PP001Porcelain();
     </script>
 </body>
 </html>
