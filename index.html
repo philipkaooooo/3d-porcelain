@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Porcelain Transcendence — Working Morph & Scenes</title>
+<title>Porcelain Transcendence — Hybrid Mesh + Particles (Stable, Non-Flicker)</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body,#container{height:100%;width:100%}
@@ -11,12 +11,11 @@
   #container{position:fixed;inset:0}
   canvas{display:block;touch-action:none}
   .ui{position:absolute;inset:0;pointer-events:none;z-index:10}
-  .panel{position:absolute;pointer-events:auto;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.06);padding:8px 10px;border-radius:10px;font-size:13px}
+  .panel{position:absolute;pointer-events:auto;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.06);padding:8px 10px;border-radius:10px;font-size:13px;line-height:1.35}
   .top-left{left:12px;top:12px}
   .top-right{right:12px;top:12px;text-align:right}
   .bottom-left{left:12px;bottom:12px}
   .small{font-size:12px;opacity:.8}
-  button,label{cursor:pointer}
 </style>
 </head>
 <body>
@@ -25,14 +24,14 @@
 <div class="ui">
   <div class="panel top-left">
     <div id="sceneLabel" style="font-weight:600">Scene 1 / 5 — Dawn Vessel</div>
-    <div class="small">← → scene • SCROLL chapters (0–3) • SPACE motion • CLICK pulse</div>
+    <div class="small">← → change scene • SCROLL chapters (0–3) • SPACE pause</div>
   </div>
   <div class="panel top-right">
     <label><input id="toggleBloom" type="checkbox" checked> Bloom</label><br/>
     <label><input id="toggleDOF" type="checkbox"> DOF</label><br/>
     <label><input id="toggleParticles" type="checkbox" checked> Particles</label>
   </div>
-  <div class="panel bottom-left small">Particles morph into porcelain using surface sampling. If FPS low, reduce COUNT at top.</div>
+  <div class="panel bottom-left small">Hybrid: physical porcelain mesh + controlled particle skin. Bloom clamped; reflections via RoomEnvironment (PMREM).</div>
 </div>
 
 <script type="importmap">
@@ -54,17 +53,20 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// ====== CONSTANTS (tweak here if needed) ======
-const COUNT = 3000;            // total particles
-const CHAPTERS = 4;            // 0..3
+/* ================== TUNABLE CONSTANTS ================== */
 const DPR = Math.min(window.devicePixelRatio||1, 2);
+const COUNT = 2600;           // particle count (keep ≤ 4k for integrated GPUs)
+const CHAPTERS = 4;           // 0..3 (cloud → assemble → settled → gentle release)
+const PARTICLE_BASE_SIZE = 7.5;
+const USE_ADDITIVE = false;   // additive = true will brighten; false is safer and stable
 
-// ====== CORE SETUP ======
+/* ================== CORE SETUP ================== */
 const container = document.getElementById('container');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x030308);
-scene.fog = new THREE.FogExp2(0x00000f, 0.03);
+scene.background = new THREE.Color(0x030307);
+scene.fog = new THREE.FogExp2(0x00000f, 0.028);
 
 const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.05, 2000);
 camera.position.set(8,4.5,9);
@@ -73,72 +75,72 @@ const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high
 renderer.setPixelRatio(DPR);
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.92;
+renderer.toneMappingExposure = 0.85; // slightly lower to avoid bloom blowout
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 container.appendChild(renderer.domElement);
 
+const pmrem = new THREE.PMREMGenerator(renderer);
+const env = pmrem.fromScene(new RoomEnvironment(renderer), 0.6).texture; // physically plausible indoor env
+scene.environment = env;
+
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.enableZoom = false;
-controls.maxPolarAngle = Math.PI*0.495;
+controls.maxPolarAngle = Math.PI * 0.495;
 controls.minDistance = 1.6; controls.maxDistance = 40;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.6, 0.85);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.55, 0.88); // softer, safer defaults
 composer.addPass(bloomPass);
-const bokehPass = new BokehPass(scene, camera, { focus:20, aperture:0.0009, maxblur:0.01, width:innerWidth, height:innerHeight });
+const bokehPass = new BokehPass(scene, camera, { focus: 19, aperture: 0.0009, maxblur: 0.009, width: innerWidth, height: innerHeight });
 bokehPass.enabled = false; composer.addPass(bokehPass);
 const smaaPass = new SMAAPass(innerWidth, innerHeight); composer.addPass(smaaPass);
 
-// Ground
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshStandardMaterial({ color:0x040405, roughness:0.9 }));
+/* ================== STAGE GEOMETRY ================== */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(400,400),
+  new THREE.MeshStandardMaterial({ color:0x040405, roughness:0.9 })
+);
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
-const disc = new THREE.Mesh(new THREE.CircleGeometry(10,64), new THREE.MeshStandardMaterial({ color:0x0e0e10, roughness:0.45, metalness:0.04, transparent:true, opacity:1 }));
+
+const disc = new THREE.Mesh(
+  new THREE.CircleGeometry(10,64),
+  new THREE.MeshStandardMaterial({ color:0x0e0e10, roughness:0.45, metalness:0.05, transparent:true, opacity:1 })
+);
 disc.rotation.x = -Math.PI/2; disc.position.y = 0.001; disc.receiveShadow = true; scene.add(disc);
 
-// Cursor light & glow
-function glowTex(size=256){
-  const c=document.createElement('canvas'); c.width=c.height=size; const ctx=c.getContext('2d');
-  const g=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
-  g.addColorStop(0,'#fff3d9'); g.addColorStop(.5,'rgba(255,243,217,.4)'); g.addColorStop(1,'rgba(255,243,217,0)');
-  ctx.fillStyle=g; ctx.fillRect(0,0,size,size); return new THREE.CanvasTexture(c);
+/* ================== CURSOR LIGHT ================== */
+function makeGlowTex(size=256){
+  const c=document.createElement('canvas'); c.width=c.height=size; const x=c.getContext('2d');
+  x.clearRect(0,0,size,size);
+  // Premultiplied-looking soft disc
+  x.globalCompositeOperation='source-over';
+  const g=x.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  g.addColorStop(0,'rgba(255,243,217,1)');
+  g.addColorStop(.6,'rgba(255,243,217,.35)');
+  g.addColorStop(1,'rgba(255,243,217,0)');
+  x.fillStyle=g; x.fillRect(0,0,size,size);
+  const t=new THREE.CanvasTexture(c); t.minFilter=t.magFilter=THREE.LinearFilter; return t;
 }
-const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 28, 2.2); scene.add(cursorLight);
-const cursorBall = new THREE.Mesh(new THREE.SphereGeometry(0.06,12,12), new THREE.MeshBasicMaterial({ color:0xfff3d9 })); scene.add(cursorBall);
-const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex(512), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:0.65 }));
-glow.scale.setScalar(0.8); scene.add(glow);
+const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 22, 2.0); scene.add(cursorLight);
+const cursorBall = new THREE.Mesh(new THREE.SphereGeometry(0.06,16,16), new THREE.MeshBasicMaterial({ color:0xfff3d9 })); scene.add(cursorBall);
+const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:makeGlowTex(512), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:0.45 }));
+glow.scale.setScalar(0.7); scene.add(glow);
 
-// Click pulse (pooled)
-const pulsePool=[], activePulses=[];
-function mkPulse(n=80){const g=new THREE.BufferGeometry();const pos=new Float32Array(n*3), vel=new Float32Array(n*3);
-g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setAttribute('vel', new THREE.BufferAttribute(vel,3));
-const m=new THREE.PointsMaterial({ size:0.05, transparent:true, opacity:1, depthWrite:false });
-const pts=new THREE.Points(g,m); pts.userData={life:0, n}; return pts;}
-function getPulse(){return pulsePool.pop()||mkPulse();}
-function spawnPulse(p, color=0xfff0d8){
-  const pts=getPulse(); const pos=pts.geometry.attributes.position.array; const vel=pts.geometry.attributes.vel.array;
-  for(let i=0;i<pts.userData.n;i++){
-    const phi=Math.acos(2*Math.random()-1), the=Math.random()*Math.PI*2, r=.02+Math.random()*0.08;
-    pos[i*3]=p.x+r*Math.sin(phi)*Math.cos(the);
-    pos[i*3+1]=p.y+r*Math.cos(phi);
-    pos[i*3+2]=p.z+r*Math.sin(phi)*Math.sin(the);
-    vel[i*3]=(Math.random()-.5)*.9; vel[i*3+1]=Math.random()*1.2+.2; vel[i*3+2]=(Math.random()-.5)*.9;
-  }
-  pts.geometry.attributes.position.needsUpdate=true; pts.geometry.attributes.vel.needsUpdate=true;
-  pts.material.color.setHex(color); pts.userData.life=1; pts.visible=true; if(!pts.parent) scene.add(pts); activePulses.push(pts);
-}
-
-// ====== PARTICLE MORPH SYSTEM ======
-/** We use a single Points buffer per scene. Vertex shader mixes from startPos (cloud) to targetPos (sampled on mesh). */
-const sprite = (()=>{ // soft round sprite
+/* ================== PARTICLE MATERIAL ================== */
+const sprite = (()=>{ // soft, premultiplied-friendly sprite
   const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  x.clearRect(0,0,128,128);
   const g=x.createRadialGradient(64,64,0,64,64,64);
-  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.6,'rgba(255,255,255,.35)'); g.addColorStop(1,'rgba(255,255,255,0)');
-  x.fillStyle=g; x.fillRect(0,0,128,128); const t=new THREE.CanvasTexture(c); t.minFilter=t.magFilter=THREE.LinearFilter; return t;
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(.6,'rgba(255,255,255,.32)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,128,128);
+  const t=new THREE.CanvasTexture(c); t.minFilter=t.magFilter=THREE.LinearFilter; return t;
 })();
 
 const particleVert = `
@@ -148,22 +150,22 @@ attribute float seed;
 uniform float uTime;
 uniform float uAssemble;   // 0..1
 uniform float uSize;
-varying float vFade;
+varying float vMix;
 void main(){
-  float t = uAssemble;
-  // small flow wobble while assembling
+  float t = smoothstep(0.0, 1.0, uAssemble);
+  // gentle wobble only while assembling
   vec3 wob = vec3(
-    sin(uTime*0.9 + seed*6.283)*0.25,
-    cos(uTime*1.1 + seed*5.123)*0.25,
-    sin(uTime*1.0 + seed*3.777)*0.25
-  );
-  vec3 p = mix(startPos + wob*(1.0-t), targetPos, smoothstep(0.0, 1.0, t));
+    sin(uTime*0.8 + seed*6.283)*0.22,
+    cos(uTime*1.07 + seed*5.123)*0.22,
+    sin(uTime*1.03 + seed*3.777)*0.22
+  ) * (1.0 - t);
+  vec3 p = mix(startPos + wob, targetPos, t);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   float dist = -mv.z;
-  float size = uSize * (1.0 + 0.6*(1.0-t));  // larger when dispersed
+  float size = uSize * mix(1.4, 1.0, t);    // larger in cloud, settles smaller
   gl_PointSize = size * (300.0 / max(10.0, dist));
   gl_Position = projectionMatrix * mv;
-  vFade = t;
+  vMix = t;
 }
 `;
 
@@ -171,202 +173,202 @@ const particleFrag = `
 uniform sampler2D map;
 uniform vec3 uGrade;
 uniform float uOpacity;
-varying float vFade;
+varying float vMix;
 void main(){
-  vec2 uv = gl_PointCoord;
-  vec4 c = texture2D(map, uv);
-  vec3 col = c.rgb * mix(vec3(1.0), uGrade, 0.6);
-  float a = c.a * mix(0.9, 1.0, vFade) * uOpacity;
-  if (a < 0.01) discard;
+  vec4 tex = texture2D(map, gl_PointCoord);
+  // Clamp alpha softly to avoid harsh edges on bloom
+  float a = tex.a * uOpacity * mix(0.85, 1.0, vMix);
+  if (a < 0.02) discard;
+  vec3 col = tex.rgb * mix(vec3(1.0), uGrade, 0.5);
   gl_FragColor = vec4(col, a);
 }
 `;
 
-function makePointsMaterial(grade=new THREE.Vector3(1,1,1)){
+function makeParticleMaterial(colorGrade){
   return new THREE.ShaderMaterial({
     transparent:true,
-    depthWrite:false,
-    blending:THREE.AdditiveBlending,
+    depthTest:true,       // important: participate in depth testing so the mass reads as a surface
+    depthWrite:false,     // but don't write, to avoid self-occlusion noise within the cloud
+    blending: USE_ADDITIVE ? THREE.AdditiveBlending : THREE.NormalBlending,
     uniforms:{
       map:{ value:sprite },
-      uGrade:{ value:grade },
-      uOpacity:{ value:0.9 },
+      uGrade:{ value:colorGrade.clone() },
+      uOpacity:{ value: USE_ADDITIVE ? 0.55 : 0.9 },
       uAssemble:{ value:0.0 },
       uTime:{ value:0.0 },
-      uSize:{ value:8.0 }
+      uSize:{ value: PARTICLE_BASE_SIZE }
     },
     vertexShader: particleVert,
     fragmentShader: particleFrag
   });
 }
 
-function sampleOnMesh(mesh, n){
-  // build sampler on a cloned single-material mesh
-  const g = mesh.geometry.clone();
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color:0xffffff }));
-  const sampler = new MeshSurfaceSampler(m).build();
-  const pos = new Float32Array(n*3);
-  const _p = new THREE.Vector3();
-  for(let i=0;i<n;i++){ sampler.sample(_p); pos[i*3]=_p.x; pos[i*3+1]=_p.y; pos[i*3+2]=_p.z; }
-  return pos;
+/* ================== FORMS ================== */
+function makeForms(){
+  const a=(()=>{const pts=[];for(let i=0;i<22;i++){const t=i/21;pts.push(new THREE.Vector2(0.6+Math.sin(t*Math.PI)*0.8*(0.5+0.5*t), -1+t*2.2));}
+    const geo=new THREE.LatheGeometry(pts,256); return new THREE.Mesh(geo);})();
+  const b=(()=>{const ring=new THREE.RingGeometry(0.5,2.0,128);
+    const bowl=new THREE.SphereGeometry(2.2,128,128,0,Math.PI*2,0,Math.PI/2); bowl.scale(1,0.38,1);
+    return new THREE.Mesh(bowl);})();
+  const c=(()=>{const geo=new THREE.TorusKnotGeometry(1.0,0.25,512,64,2,3); geo.rotateX(Math.PI*0.1); return new THREE.Mesh(geo);})();
+  const d=(()=>{const geo=new THREE.CylinderGeometry(0.8,0.8,3.6,128,1,true); return new THREE.Mesh(geo);})();
+  const e=(()=>{const geo=new THREE.SphereGeometry(1.8,128,128,0,Math.PI*2,0,Math.PI/1.7); geo.scale(1,0.7,1); return new THREE.Mesh(geo);})();
+  return [a,b,c,d,e];
 }
 
-function randomSphere(n, radius=6){
+/* ================== HYBRID NODE (MESH + PARTICLES) ================== */
+function sampleTarget(mesh, n, scaleTo=4.4){
+  // center and scale
+  const box = new THREE.Box3().setFromObject(mesh);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const s = scaleTo / Math.max(size.x,size.y,size.z, 1e-6);
+  // sampler
+  const m = new THREE.Mesh(mesh.geometry.clone(), new THREE.MeshBasicMaterial());
+  const sampler = new MeshSurfaceSampler(m).build();
   const pos = new Float32Array(n*3);
-  for(let i=0;i<n;i++){
+  const p = new THREE.Vector3();
+  for (let i=0;i<n;i++){ sampler.sample(p);
+    pos[i*3]   = (p.x - center.x) * s;
+    pos[i*3+1] = (p.y - center.y) * s;
+    pos[i*3+2] = (p.z - center.z) * s;
+  }
+  return { pos, scale:s, center };
+}
+
+function randomCloud(n, radius=6){
+  const pos = new Float32Array(n*3);
+  for (let i=0;i<n;i++){
     const u=Math.random(), v=Math.random();
-    const theta=2*Math.PI*u, phi=Math.acos(2*v-1);
+    const th=2*Math.PI*u, ph=Math.acos(2*v-1);
     const r=radius*(.35+.65*Math.random());
-    pos[i*3]=r*Math.sin(phi)*Math.cos(theta);
-    pos[i*3+1]=r*Math.cos(phi)*0.6; // slightly flattened cloud
-    pos[i*3+2]=r*Math.sin(phi)*Math.sin(theta);
+    pos[i*3]   = r*Math.sin(ph)*Math.cos(th);
+    pos[i*3+1] = r*Math.cos(ph)*0.6;
+    pos[i*3+2] = r*Math.sin(ph)*Math.sin(th);
   }
   return pos;
 }
 
-function makePorcelainForms(){
-  // five procedural porcelains
-  const a=(()=>{ // lathe vase
-    const pts=[]; for(let i=0;i<22;i++){ const t=i/21; pts.push(new THREE.Vector2(0.6+Math.sin(t*Math.PI)*0.8*(0.5+0.5*t), -1 + t*2.2)); }
-    const geo=new THREE.LatheGeometry(pts, 256);
-    return new THREE.Mesh(geo);
-  })();
-  const b=(()=>{ // shallow plate
-    const ring=new THREE.RingGeometry(0.5,2.0,128);
-    const bowl=new THREE.SphereGeometry(2.2,128,128,0,Math.PI*2,0,Math.PI/2); bowl.scale(1,0.38,1);
-    const g=new THREE.Group(); g.add(new THREE.Mesh(ring), new THREE.Mesh(bowl)); // sampling works on merged group? we sample bowl (larger)
-    const m=new THREE.Mesh(bowl); m.position.y=0.02; return m;
-  })();
-  const c=(()=>{ // torus knot
-    const geo=new THREE.TorusKnotGeometry(1.0,0.25,512,64,2,3); geo.rotateX(Math.PI*0.1);
-    return new THREE.Mesh(geo);
-  })();
-  const d=(()=>{ // column (open)
-    const geo=new THREE.CylinderGeometry(0.8,0.8,3.6,64,1,true);
-    return new THREE.Mesh(geo);
-  })();
-  const e=(()=>{ // bowl
-    const geo=new THREE.SphereGeometry(1.8,128,128,0,Math.PI*2,0,Math.PI/1.7); geo.scale(1,0.7,1);
-    return new THREE.Mesh(geo);
-  })();
-  return [a,b,c,d,e];
-}
-
-// ====== SCENE NODE ======
-class SceneNode {
+class HybridPorcelain {
   constructor(def){
     this.id = def.id;
     this.name = def.name;
-    this.grade = def.grade;
     this.bg = new THREE.Color(def.bg);
     this.keyColor = def.key;
-    this.rail = def.rail; // {pos:Vector3, target:Vector3}
+    this.grade = def.grade;
+    this.rail = def.rail;
     this.group = new THREE.Group();
 
     // Lights
     this.hemi = new THREE.HemisphereLight(0xddddff,0x0a0a0d,0.45); this.group.add(this.hemi);
-    this.key = new THREE.DirectionalLight(this.keyColor, 1.8); this.key.position.set(6,10,6); this.key.castShadow=true; this.key.shadow.mapSize.set(1024,1024); this.key.shadow.bias=-0.0005; this.group.add(this.key);
-    this.fill = new THREE.DirectionalLight(0x8fb3ff,0.45); this.fill.position.set(-6,5,-6); this.group.add(this.fill);
-    this.rim = new THREE.DirectionalLight(0xffe6d0,0.6); this.rim.position.set(0,6,-8); this.group.add(this.rim);
+    this.key  = new THREE.DirectionalLight(this.keyColor, 1.65); this.key.position.set(6,10,6); this.key.castShadow=true; this.key.shadow.mapSize.set(1024,1024); this.key.shadow.bias=-0.0005; this.group.add(this.key);
+    this.fill = new THREE.DirectionalLight(0x8fb3ff,0.42); this.fill.position.set(-6,5,-6); this.group.add(this.fill);
+    this.rim  = new THREE.DirectionalLight(0xffe6d0,0.55); this.rim.position.set(0,6,-8); this.group.add(this.rim);
 
-    // Geometry (for sampling only; not rendered)
-    this.form = def.form;
-    // Particles
-    this.points = this.makeParticleCloud();
-    this.group.add(this.points);
+    // Physical porcelain mesh (solid surface for reflections/specular)
+    const physMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0xf6f7fb),
+      roughness: 0.06,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      envMap: scene.environment,
+      envMapIntensity: 1.2
+    });
+    const scalePack = sampleTarget(def.form, COUNT); // also gives uniform scale for the form
+    this.mesh = new THREE.Mesh(def.form.geometry.clone(), physMat);
+    this.mesh.scale.setScalar(scalePack.scale);
+    this.mesh.castShadow = this.mesh.receiveShadow = true;
+    this.group.add(this.mesh);
 
-    // Motion
-    this.motionEnabled = true;
-    this.chapter = 0;
-  }
-
-  makeParticleCloud(){
-    // prepare attributes
+    // Particle skin (assemble/dissolve)
     const geo = new THREE.BufferGeometry();
-    // start positions: cloud
-    const start = randomSphere(COUNT, 6);
-    // target positions: sample on form
-    const target = sampleOnMesh(this.form, COUNT);
-    // center the target roughly
-    const box = new THREE.Box3().setFromObject(this.form);
-    const center = box.getCenter(new THREE.Vector3());
-    for(let i=0;i<COUNT;i++){ target[i*3]-=center.x; target[i*3+1]-=center.y; target[i*3+2]-=center.z; }
-    // scale target to reasonable size (~4.4 max)
-    const size = box.getSize(new THREE.Vector3()); const maxDim = Math.max(size.x,size.y,size.z) || 1;
-    const s = 4.4 / maxDim;
-    for(let i=0;i<COUNT;i++){ target[i*3]*=s; target[i*3+1]*=s; target[i*3+2]*=s; }
-
+    const start = randomCloud(COUNT, 6);
     const seeds = new Float32Array(COUNT);
     for(let i=0;i<COUNT;i++) seeds[i]=Math.random();
-
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(COUNT*3), 3)); // not used for movement; just placeholder
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(COUNT*3),3)); // mandatory placeholder
     geo.setAttribute('startPos', new THREE.BufferAttribute(start,3));
-    geo.setAttribute('targetPos', new THREE.BufferAttribute(target,3));
+    geo.setAttribute('targetPos', new THREE.BufferAttribute(scalePack.pos,3));
     geo.setAttribute('seed', new THREE.BufferAttribute(seeds,1));
+    const mat = makeParticleMaterial(this.grade);
+    this.points = new THREE.Points(geo, mat);
+    this.points.frustumCulled = false;
+    this.group.add(this.points);
 
-    const mat = makePointsMaterial(this.grade.clone());
-    const pts = new THREE.Points(geo, mat);
-    pts.frustumCulled = false;
-    return pts;
+    this.chapter = 0;
+    this.motion = true;
   }
 
   enter(){
-    // background & light ramps
-    gsap.to(scene.background, { r:this.bg.r, g:this.bg.g, b:this.bg.b, duration:0.9 });
-    gsap.fromTo(this.key, { intensity:0.0 }, { intensity:1.8, duration:0.9 });
-    gsap.fromTo(this.fill,{ intensity:0.0 }, { intensity:0.45, duration:0.9, delay:0.1 });
-    gsap.fromTo(this.rim, { intensity:0.0 }, { intensity:0.6, duration:0.9, delay:0.12 });
-    // assemble morph (0→1 over 1.2s)
+    // Background & light ramps
+    gsap.to(scene.background, { r:this.bg.r, g:this.bg.g, b:this.bg.b, duration:0.9, ease:'sine.out' });
+    for (const L of [this.key,this.fill,this.rim]) gsap.fromTo(L, { intensity:0.0 }, { intensity:L.intensity, duration:0.9 });
+
+    // Mesh appears as particles assemble (meshOpacity follows t)
+    this.mesh.material.transparent = true;
+    this.mesh.material.opacity = 0.0;
+    gsap.to(this.mesh.material, { opacity: 0.98, duration: 1.1, ease:'power2.out' });
+
+    // Particles 0→1 (assemble)
     gsap.fromTo(this.points.material.uniforms.uAssemble, { value:0.0 }, { value:1.0, duration:1.2, ease:'power2.out' });
-    gsap.fromTo(this.points.material.uniforms.uOpacity, { value:0.0 }, { value:0.95, duration:0.8 });
-    // camera rail
+    gsap.fromTo(this.points.material.uniforms.uOpacity, { value:0.0 }, { value: USE_ADDITIVE ? 0.5 : 0.85, duration:0.8 });
+
+    // Camera rail
     if (this.rail){
-      gsap.to(camera.position, { x:this.rail.pos.x, y:this.rail.pos.y, z:this.rail.pos.z, duration:1.1, ease:'expo.inOut', onUpdate:()=>controls.update() });
+      gsap.to(camera.position, { x:this.rail.position.x, y:this.rail.position.y, z:this.rail.position.z, duration:1.1, ease:'expo.inOut', onUpdate:()=>controls.update() });
       gsap.to(controls.target, { x:this.rail.target.x, y:this.rail.target.y, z:this.rail.target.z, duration:1.1, ease:'expo.inOut', onUpdate:()=>controls.update() });
     }
+    // Bloom clamp (no spikes)
+    gsap.to(bloomPass, { strength: 0.38, duration: 0.9 });
   }
 
   exit(){
-    // fade out particles a bit during crossfade; reset assemble for next time
-    gsap.to(this.points.material.uniforms.uOpacity, { value:0.0, duration:0.6 });
+    // Fade particle skin and mesh slightly during crossfade
+    gsap.to(this.points.material.uniforms.uOpacity, { value:0.0, duration:0.5 });
+    gsap.to(this.mesh.material, { opacity: 0.0, duration: 0.5 });
   }
 
-  setChapter(c){
-    this.chapter = THREE.MathUtils.clamp(c, 0, CHAPTERS-1);
-    // map chapter to assemble amount and bloom strength
+  setChapter(k){
+    this.chapter = THREE.MathUtils.clamp(k, 0, CHAPTERS-1);
     const t = this.chapter/(CHAPTERS-1); // 0..1
-    gsap.to(this.points.material.uniforms.uAssemble, { value: t, duration:0.6, ease:'sine.out' });
-    gsap.to(bloomPass, { strength: 0.3 + 0.6*t, duration:0.6 });
-    // slight disc tint/roughness swing
-    gsap.to(disc.material, { roughness: 0.35 + 0.25*(1-t), duration:0.6 });
+    // Map chapter: 0 cloud → 1 assemble → 2 set → 3 release slight
+    const assemble = (this.chapter<=2) ? (this.chapter/2) : 1.0 - 0.18*(this.chapter-2); // slight release at 3
+    gsap.to(this.points.material.uniforms.uAssemble, { value: assemble, duration:0.6, ease:'sine.out' });
+    // Mesh opacity tracks assemble (never > 0.98)
+    gsap.to(this.mesh.material, { opacity: THREE.MathUtils.clamp(0.2 + 0.8*assemble, 0, 0.98), duration:0.6 });
+    // Bloom subtlety
+    gsap.to(bloomPass, { strength: 0.28 + 0.25*assemble, duration:0.6 });
+    // Disc micro-response
+    gsap.to(disc.material, { roughness: 0.38 + 0.18*(1-assemble), duration:0.6 });
   }
 
-  update(dt, time, cursorWorld, cursorIntensity){
-    this.points.material.uniforms.uTime.value = time;
-    if (this.motionEnabled){
+  update(dt, t){
+    this.points.material.uniforms.uTime.value = t;
+    if (this.motion){
       this.group.rotation.y += dt * 0.12;
     }
   }
 
-  toggleMotion(flag){ this.motionEnabled = flag; }
+  toggleMotion(flag){ this.motion = flag; }
 }
 
-// ====== BUILD SCENES ======
-const forms = makePorcelainForms();
+/* ================== SCENES ================== */
+const forms = makeForms();
 const sceneDefs = [
-  { id:0, name:'Dawn Vessel', bg:0x05050a, key:0xfff8e8, grade:new THREE.Vector3(1.05,0.95,0.90), rail:{ pos:new THREE.Vector3(6,3.5,6), target:new THREE.Vector3(0,1.1,0) }, form:forms[0] },
-  { id:1, name:'Calm Mirror', bg:0x071022, key:0xdfefff, grade:new THREE.Vector3(0.95,1.02,1.05), rail:{ pos:new THREE.Vector3(5.5,2.8,5.8), target:new THREE.Vector3(0,0.85,0) }, form:forms[1] },
-  { id:2, name:'Whim', bg:0x10040a, key:0xffefe9, grade:new THREE.Vector3(1.06,0.96,1.05), rail:{ pos:new THREE.Vector3(7,3.4,7), target:new THREE.Vector3(0,0.8,0) }, form:forms[2] },
-  { id:3, name:'Echo Column', bg:0x071011, key:0xfffff6, grade:new THREE.Vector3(1.00,0.98,1.05), rail:{ pos:new THREE.Vector3(6.2,3.8,6.2), target:new THREE.Vector3(0,1.4,0) }, form:forms[3] },
-  { id:4, name:'Night Bloom', bg:0x040618, key:0xe6f0ff, grade:new THREE.Vector3(0.92,0.98,1.08), rail:{ pos:new THREE.Vector3(7.5,3.6,7.8), target:new THREE.Vector3(0,0.9,0) }, form:forms[4] },
+  { id:0, name:'Dawn Vessel',  bg:0x05050a, key:0xfff8e8, grade:new THREE.Vector3(1.05,0.95,0.90), rail:{ position:new THREE.Vector3(6,3.5,6),   target:new THREE.Vector3(0,1.1,0) }, form:forms[0] },
+  { id:1, name:'Calm Mirror',  bg:0x071022, key:0xdfefff, grade:new THREE.Vector3(0.95,1.02,1.05), rail:{ position:new THREE.Vector3(5.5,2.8,5.8), target:new THREE.Vector3(0,0.85,0)}, form:forms[1] },
+  { id:2, name:'Whim',         bg:0x10040a, key:0xffefe9, grade:new THREE.Vector3(1.06,0.96,1.05), rail:{ position:new THREE.Vector3(7,3.4,7),   target:new THREE.Vector3(0,0.8,0) }, form:forms[2] },
+  { id:3, name:'Echo Column',  bg:0x071011, key:0xfffff6, grade:new THREE.Vector3(1.00,0.98,1.05), rail:{ position:new THREE.Vector3(6.2,3.8,6.2),target:new THREE.Vector3(0,1.4,0) }, form:forms[3] },
+  { id:4, name:'Night Bloom',  bg:0x040618, key:0xe6f0ff, grade:new THREE.Vector3(0.92,0.98,1.08), rail:{ position:new THREE.Vector3(7.5,3.6,7.8),target:new THREE.Vector3(0,0.9,0) }, form:forms[4] },
 ];
-const nodes = sceneDefs.map(def => new SceneNode(def));
+const nodes = sceneDefs.map(def => new HybridPorcelain(def));
+
 let sceneIndex = 0, chapterIndex = 0;
 scene.add(nodes[0].group);
 nodes[0].enter();
 document.getElementById('sceneLabel').textContent = `Scene 1 / 5 — ${nodes[0].name}`;
 
-// ====== CROSSFADE BETWEEN SCENES ======
+/* ================== SCENE TRANSITION ================== */
 let transitioning=false;
 function gotoScene(i){
   if (transitioning || i===sceneIndex || i<0 || i>=nodes.length) return;
@@ -374,9 +376,8 @@ function gotoScene(i){
   const from = nodes[sceneIndex], to = nodes[i];
   if (!to.group.parent) scene.add(to.group);
 
-  // fade prepare (particles already transparent-capable)
   controls.enabled=false;
-  gsap.to(disc.material, { opacity:0.6, duration:0.4 });
+  gsap.to(disc.material, { opacity:0.6, duration:0.35 });
 
   const tl = gsap.timeline({ onComplete:()=>{
     scene.remove(from.group);
@@ -384,31 +385,27 @@ function gotoScene(i){
     to.setChapter(0);
     document.getElementById('sceneLabel').textContent = `Scene ${i+1} / 5 — ${to.name}`;
     transitioning=false; controls.enabled=true;
-    gsap.to(disc.material, { opacity:1.0, duration:0.4 });
+    gsap.to(disc.material, { opacity:1.0, duration:0.35 });
   }});
-
   tl.add(()=>from.exit(), 0);
-  tl.add(()=>to.enter(), 0.02);
-  // subtle cross exposure via bloom
-  tl.to(bloomPass, { strength: 0.45, duration:0.6 }, 0);
+  tl.add(()=>to.enter(),  0.02);
+  tl.to(bloomPass, { strength: 0.36, duration: 0.6 }, 0);
 }
 
-// ====== INPUT & CHAPTERS ======
+/* ================== INPUT / UI ================== */
 function setChapter(delta){
   chapterIndex = THREE.MathUtils.clamp(chapterIndex + delta, 0, CHAPTERS-1);
   nodes[sceneIndex].setChapter(chapterIndex);
 }
 
-function updateSceneLabel(){ document.getElementById('sceneLabel').textContent = `Scene ${sceneIndex+1} / 5 — ${nodes[sceneIndex].name}`; }
-
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2(-10,-10);
-const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({ visible:false }));
-interactPlane.rotation.x = -Math.PI/2; interactPlane.position.y = 0; scene.add(interactPlane);
+const plane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({ visible:false }));
+plane.rotation.x = -Math.PI/2; plane.position.y = 0; scene.add(plane);
 
-function computeHit(){
+function planeHit(){
   raycaster.setFromCamera(mouse, camera);
-  const ints = raycaster.intersectObject(interactPlane);
+  const ints = raycaster.intersectObject(plane);
   return ints.length ? ints[0].point.clone() : null;
 }
 
@@ -418,22 +415,14 @@ renderer.domElement.addEventListener('mousemove', (e)=>{
   mouse.y = -((e.clientY - r.top)/r.height)*2 + 1;
 }, { passive:true });
 
-renderer.domElement.addEventListener('pointerdown', ()=>{
-  const p = computeHit() || new THREE.Vector3(0,0,0);
-  spawnPulse(p, 0xfff0d8);
-}, { passive:true });
-
-let scrollTarget = camera.position.distanceTo(controls.target);
-let accum = 0;
 renderer.domElement.addEventListener('wheel', (e)=>{
   e.preventDefault();
+  // manual zoom along view ray
   scrollTarget += e.deltaY * 0.003 * 6;
   scrollTarget = THREE.MathUtils.clamp(scrollTarget, controls.minDistance, controls.maxDistance);
-  // chapter step every ~120 wheel delta
   accum += e.deltaY;
   if (Math.abs(accum) > 120){
-    setChapter(accum > 0 ? +1 : -1);
-    accum = 0;
+    setChapter(accum>0 ? +1 : -1); accum = 0;
   }
 }, { passive:false });
 
@@ -441,78 +430,67 @@ window.addEventListener('keydown', (e)=>{
   const typing = document.activeElement && (['INPUT','TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable);
   if (typing) return;
   if (e.code==='ArrowRight'){ e.preventDefault(); gotoScene((sceneIndex+1)%nodes.length); }
-  if (e.code==='ArrowLeft'){ e.preventDefault(); gotoScene((sceneIndex-1+nodes.length)%nodes.length); }
-  if (e.code==='Space'){ e.preventDefault(); nodes.forEach(n=>n.toggleMotion(!n.motionEnabled)); }
+  if (e.code==='ArrowLeft'){  e.preventDefault(); gotoScene((sceneIndex-1+nodes.length)%nodes.length); }
+  if (e.code==='Space'){      e.preventDefault(); nodes.forEach(n=>n.toggleMotion(!n.motion)); }
 }, { passive:false });
 
-// UI toggles
 document.getElementById('toggleBloom').addEventListener('change', e=>{ bloomPass.enabled = e.target.checked; });
 document.getElementById('toggleDOF').addEventListener('change', e=>{ bokehPass.enabled = e.target.checked; });
 document.getElementById('toggleParticles').addEventListener('change', e=>{
   nodes.forEach(n=>{ n.points.visible = e.target.checked; });
 });
 
-// ====== RESIZE ======
-function resize(){
-  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
-  try{
-    if (bokehPass.materialBokeh?.uniforms?.aspect) bokehPass.materialBokeh.uniforms.aspect.value = camera.aspect;
-    smaaPass.setSize(innerWidth, innerHeight);
-  }catch{}
-}
-addEventListener('resize', resize);
+/* ================== CAMERA ZOOM SMOOTHER ================== */
+let scrollTarget = camera.position.distanceTo(controls.target);
+let accum = 0;
 
-// ====== LOOP ======
+/* ================== LOOP ================== */
 const clock = new THREE.Clock();
 function animate(){
   const dt = Math.min(0.05, clock.getDelta());
-  const t = clock.getElapsedTime();
+  const t  = clock.getElapsedTime();
 
-  // smooth camera distance (manual zoom)
-  const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
+  // Smooth zoom along forward vector
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const desired = THREE.MathUtils.lerp(camera.position.distanceTo(controls.target), scrollTarget, 0.06);
   const clamped = THREE.MathUtils.clamp(desired, controls.minDistance, controls.maxDistance);
-  const newPos = new THREE.Vector3().copy(camDir).multiplyScalar(-clamped).add(controls.target);
-  camera.position.lerp(newPos, 0.08);
+  const to = new THREE.Vector3().copy(dir).multiplyScalar(-clamped).add(controls.target);
+  camera.position.lerp(to, 0.08);
 
-  // cursor glow follows plane hit
-  const p = computeHit();
+  // Cursor glow
+  const p = planeHit();
   if (p){
-    const camDist = camera.position.distanceTo(p);
-    const camFactor = THREE.MathUtils.clamp(8.0/Math.max(0.001,camDist),0.0,1.0);
-    const intended = 0.2 * camFactor;
-    cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, intended, 0.12);
+    const d = camera.position.distanceTo(p);
+    const f = THREE.MathUtils.clamp(7.0/Math.max(0.001,d), 0.0, 1.0);
+    const inten = 0.18 * f;
+    cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, inten, 0.12);
     cursorLight.position.lerp(p, 0.18);
     cursorBall.position.lerp(p, 0.18);
-    glow.position.lerp(new THREE.Vector3().copy(p).add(new THREE.Vector3().subVectors(camera.position, p).setLength(0.06)), 0.18);
-    glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.45 * camFactor, 0.12);
-    const s = THREE.MathUtils.lerp(glow.scale.x, 0.3 + camFactor*1.2, 0.12);
-    glow.scale.setScalar(s);
+    glow.position.lerp(new THREE.Vector3().copy(p).add(new THREE.Vector3().subVectors(camera.position,p).setLength(0.06)), 0.18);
+    glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.35 * f, 0.12);
+    const s = THREE.MathUtils.lerp(glow.scale.x, 0.28 + 1.1*f, 0.12); glow.scale.setScalar(s);
   }else{
     cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, 0.0, 0.06);
     glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.0, 0.05);
   }
 
-  // pulse update
-  for(let i=activePulses.length-1;i>=0;i--){
-    const pts = activePulses[i]; pts.userData.life -= dt*0.8;
-    const pos=pts.geometry.attributes.position.array, vel=pts.geometry.attributes.vel.array;
-    for(let v=0; v<pts.userData.n; v++){
-      pos[v*3]+=vel[v*3]*dt; pos[v*3+1]+=vel[v*3+1]*dt; pos[v*3+2]+=vel[v*3+2]*dt; vel[v*3+1]-=dt*0.9;
-    }
-    pts.geometry.attributes.position.needsUpdate=true; pts.material.opacity=Math.max(0, pts.userData.life);
-    if (pts.userData.life<=0){ activePulses.splice(i,1); if(pts.parent) pts.parent.remove(pts); pulsePool.push(pts); }
-  }
-
-  // update scene
-  nodes[sceneIndex].update(dt, t, p, 0);
-
+  nodes[sceneIndex].update(dt, t);
   controls.update();
   composer.render();
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);
+
+/* ================== RESIZE ================== */
+function resize(){
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  try { if (bokehPass.materialBokeh?.uniforms?.aspect) bokehPass.materialBokeh.uniforms.aspect.value = camera.aspect; smaaPass.setSize(innerWidth, innerHeight); } catch {}
+}
+addEventListener('resize', resize);
+
+// Debug hook
+window.__porcelain = { nodes, gotoScene, setChapter:(k)=>nodes[sceneIndex].setChapter(k), scene, renderer };
 
 </script>
 </body>
