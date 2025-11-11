@@ -3,272 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PP001 - Transcendental Porcelain</title>
+    <title>Porcelain Master</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #000; 
+            color: white; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
         }
-
-        body {
-            background: #000;
-            color: white;
-            font-family: 'Inter', sans-serif;
-            overflow: hidden;
+        #container { 
+            position: fixed; 
+            width: 100%; 
+            height: 100%; 
+        }
+        canvas { 
+            display: block; 
+        }
+        .ui {
             position: fixed;
-            width: 100%;
-            height: 100%;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
         }
-
-        #container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
-
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            outline: none;
-        }
-
-        .loading-screen {
-            position: absolute;
+        .loading {
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background: #000;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 1000;
-            transition: opacity 1s ease;
-        }
-
-        .loading-bar {
-            width: 400px;
-            height: 3px;
-            background: rgba(255,255,255,0.1);
-            margin-top: 30px;
-            overflow: hidden;
-            border-radius: 3px;
-        }
-
-        .loading-progress {
-            height: 100%;
-            background: linear-gradient(90deg, #ff0080, #8000ff, #0080ff, #00ff80, #ffff00);
-            width: 0%;
-            transition: width 0.3s ease;
-            border-radius: 3px;
-        }
-
-        .quantum-hud {
-            position: absolute;
-            top: 30px;
-            left: 30px;
-            background: rgba(0,0,0,0.9);
-            padding: 20px;
-            border-radius: 15px;
-            font-size: 13px;
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.2);
-            font-family: 'Courier New', monospace;
-        }
-
-        .energy-readings {
-            position: absolute;
-            top: 30px;
-            right: 30px;
-            background: rgba(0,0,0,0.9);
-            padding: 20px;
-            border-radius: 15px;
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.2);
-            font-size: 11px;
-            font-family: 'Courier New', monospace;
         }
     </style>
 </head>
 <body>
     <div id="container"></div>
-    
-    <div class="loading-screen" id="loadingScreen">
-        <div style="font-size: 32px; margin-bottom: 15px; background: linear-gradient(45deg, #ff0080, #8000ff, #0080ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">PP001 QUANTUM PORCELAIN</div>
-        <div style="font-size: 16px; opacity: 0.8; margin-bottom: 30px;">Initializing transcendental field equations...</div>
-        <div class="loading-bar">
-            <div class="loading-progress" id="loadingProgress"></div>
-        </div>
-    </div>
-
-    <div class="quantum-hud">
-        <div style="color: #ff0080; margin-bottom: 10px;">QUANTUM FIELD ACTIVE</div>
-        <div>DRAG: ORBIT FIELD • SCROLL: ZOOM MATRIX</div>
-        <div>SPACE: TOGGLE QUANTUM SPIN • R: RESET FIELD</div>
-        <div>F: FULLSCREEN TRANSCENDENCE</div>
-    </div>
-
-    <div class="energy-readings" id="energyReadings">
-        <div>FIELD ENERGY: <span id="fieldEnergy">0.000</span> eV</div>
-        <div>PARTICLE DENSITY: <span id="particleDensity">0</span>/m³</div>
-        <div>COHERENCE: <span id="coherence">0.00%</span></div>
-        <div>ENTROPY: <span id="entropy">0.000</span></div>
-    </div>
-
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
-        }
-    }
-    </script>
+    <div class="ui">Drag to orbit • Scroll to zoom • Space to rotate</div>
+    <div class="loading" id="loading">Loading porcelain...</div>
 
     <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+        import { GLTFLoader } from 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js';
 
-        // 🎯 MATHEMATICAL PRECISION CLASSES
-        class QuantumField {
+        // Simple reliable setup
+        class PorcelainViewer {
             constructor() {
-                this.time = 0;
-                this.fieldStrength = 1.0;
-                this.coherence = 0.0;
-            }
-            
-            // Schrödinger-inspired wave function
-            waveFunction(x, y, z, t) {
-                const k = 2.0; // wave number
-                const ω = 3.0; // angular frequency
-                return Math.exp(-(x*x + y*y + z*z) / 4.0) * Math.cos(k * (x + y + z) - ω * t);
-            }
-            
-            // Quantum harmonic oscillator probabilities
-            harmonicOscillator(n, x) {
-                const factorial = (n) => n <= 1 ? 1 : n * factorial(n - 1);
-                const H0 = 1, H1 = 2*x;
-                let Hn;
-                if(n === 0) Hn = H0;
-                else if(n === 1) Hn = H1;
-                else Hn = 2*x*this.harmonicOscillator(n-1, x) - 2*(n-1)*this.harmonicOscillator(n-2, x);
-                
-                return (1/Math.sqrt(Math.pow(2, n) * factorial(n) * Math.sqrt(Math.PI))) * 
-                       Math.exp(-x*x/2) * Hn;
-            }
-        }
-
-        class TranscendentalParticles {
-            constructor(count = 5000) {
-                this.count = count;
-                this.geometry = new THREE.BufferGeometry();
-                this.positions = new Float32Array(count * 3);
-                this.velocities = new Float32Array(count * 3);
-                this.phases = new Float32Array(count);
-                this.quantumStates = new Float32Array(count);
-                this.initParticles();
-            }
-            
-            initParticles() {
-                const goldenRatio = (1 + Math.sqrt(5)) / 2;
-                
-                for(let i = 0; i < this.count; i++) {
-                    const i3 = i * 3;
-                    // Fibonacci sphere distribution for perfect spatial coverage
-                    const y = 1 - (i / (this.count - 1)) * 2;
-                    const radius = Math.sqrt(1 - y * y);
-                    const theta = 2 * Math.PI * i / goldenRatio;
-                    
-                    this.positions[i3] = radius * Math.cos(theta) * 12;
-                    this.positions[i3 + 1] = y * 8 + 4;
-                    this.positions[i3 + 2] = radius * Math.sin(theta) * 12;
-                    
-                    // Quantum state initialization using prime number distribution
-                    this.quantumStates[i] = (i * 2654435761) % 1000 / 1000; // Knuth multiplicative method
-                    this.phases[i] = Math.random() * Math.PI * 2;
-                    
-                    // Velocities based on spherical harmonics
-                    const phi = Math.acos(y);
-                    this.velocities[i3] = Math.sin(phi) * Math.cos(theta) * 0.02;
-                    this.velocities[i3 + 1] = Math.cos(phi) * 0.02;
-                    this.velocities[i3 + 2] = Math.sin(phi) * Math.sin(theta) * 0.02;
-                }
-                
-                this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-                this.geometry.setAttribute('phase', new THREE.BufferAttribute(this.phases, 1));
-                this.geometry.setAttribute('quantumState', new THREE.BufferAttribute(this.quantumStates, 1));
-            }
-            
-            update(deltaTime, field) {
-                const positions = this.geometry.attributes.position.array;
-                const phases = this.geometry.attributes.phase.array;
-                const quantumStates = this.geometry.attributes.quantumState.array;
-                
-                for(let i = 0; i < this.count; i++) {
-                    const i3 = i * 3;
-                    const x = positions[i3], y = positions[i3 + 1], z = positions[i3 + 2];
-                    
-                    // Quantum field influence
-                    const fieldValue = field.waveFunction(x * 0.1, y * 0.1, z * 0.1, field.time);
-                    const harmonicValue = field.harmonicOscillator(2, x * 0.3) * field.harmonicOscillator(2, z * 0.3);
-                    
-                    // Lorentz-attractor like behavior with quantum modulation
-                    const dx = (10 * (y - x)) * 0.001 + fieldValue * 0.1;
-                    const dy = (x * (28 - z) - y) * 0.001 + harmonicValue * 0.05;
-                    const dz = (x * y - (8/3) * z) * 0.001;
-                    
-                    positions[i3] += (this.velocities[i3] + dx) * deltaTime * 20;
-                    positions[i3 + 1] += (this.velocities[i3 + 1] + dy) * deltaTime * 20;
-                    positions[i3 + 2] += (this.velocities[i3 + 2] + dz) * deltaTime * 20;
-                    
-                    // Phase evolution for wave-like behavior
-                    phases[i] += (quantumStates[i] * 0.5 + 0.5) * deltaTime * 3;
-                    
-                    // Boundary conditions with quantum tunneling probability
-                    const dist = Math.sqrt(x*x + y*y + z*z);
-                    if(dist > 20) {
-                        // Quantum teleportation to opposite side
-                        positions[i3] *= -0.8;
-                        positions[i3 + 1] *= -0.8;
-                        positions[i3 + 2] *= -0.8;
-                    }
-                }
-                
-                this.geometry.attributes.position.needsUpdate = true;
-                this.geometry.attributes.phase.needsUpdate = true;
-            }
-        }
-
-        // 🌟 TRANSCENDENTAL RENDERER
-        class TranscendentalRenderer {
-            constructor() {
-                this.container = document.getElementById('container');
                 this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer({ 
-                    antialias: true, 
-                    powerPreference: "high-performance",
-                    alpha: true
-                });
-                
-                this.quantumField = new QuantumField();
-                this.transcendentalParticles = new TranscendentalParticles(8000);
-                this.porcelainModel = null;
-                this.modelGroup = new THREE.Group();
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.controls = null;
+                this.porcelain = null;
                 this.autoRotate = true;
-                this.clock = new THREE.Clock();
-                this.fieldEnergy = 0;
-                this.particleDensity = 0;
-                this.coherence = 0;
-                this.entropy = 0;
                 
                 this.init();
             }
@@ -277,12 +72,11 @@
                 this.setupRenderer();
                 this.setupCamera();
                 this.setupControls();
-                this.setupTranscendentalLighting();
-                this.setupQuantumParticles();
-                this.setupPostProcessing();
-                this.setupEventListeners();
-                this.loadPorcelainModel();
+                this.setupLighting();
+                this.setupEnvironment();
+                this.loadModel();
                 this.animate();
+                this.setupEvents();
             }
 
             setupRenderer() {
@@ -290,358 +84,151 @@
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 this.renderer.outputColorSpace = THREE.SRGBColorSpace;
                 this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                this.renderer.toneMappingExposure = 1.8; // Increased exposure
+                this.renderer.toneMappingExposure = 1.2;
                 this.renderer.shadowMap.enabled = true;
                 this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                this.renderer.physicallyCorrectLights = true;
-                this.container.appendChild(this.renderer.domElement);
+                document.getElementById('container').appendChild(this.renderer.domElement);
             }
 
             setupCamera() {
-                this.camera.position.set(15, 10, 15);
-                this.camera.lookAt(0, 3, 0);
+                this.camera.position.set(8, 5, 8);
+                this.camera.lookAt(0, 2, 0);
             }
 
             setupControls() {
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
-                this.controls.dampingFactor = 0.03;
+                this.controls.dampingFactor = 0.05;
                 this.controls.minDistance = 3;
-                this.controls.maxDistance = 50;
+                this.controls.maxDistance = 20;
             }
 
-            setupTranscendentalLighting() {
-                // 🌞 PRIMARY QUANTUM LIGHT SOURCE (Extremely Bright)
-                const quantumLight = new THREE.DirectionalLight(0xffffff, 8.0); // Massive intensity
-                quantumLight.position.set(20, 30, 20);
-                quantumLight.castShadow = true;
-                quantumLight.shadow.mapSize.width = 4096;
-                quantumLight.shadow.mapSize.height = 4096;
-                quantumLight.shadow.camera.near = 0.1;
-                quantumLight.shadow.camera.far = 100;
-                quantumLight.shadow.camera.left = -25;
-                quantumLight.shadow.camera.right = 25;
-                quantumLight.shadow.camera.top = 25;
-                quantumLight.shadow.camera.bottom = -25;
-                this.scene.add(quantumLight);
+            setupLighting() {
+                // Main key light - bright and direct
+                const keyLight = new THREE.DirectionalLight(0xffffff, 3);
+                keyLight.position.set(10, 15, 5);
+                keyLight.castShadow = true;
+                keyLight.shadow.mapSize.width = 2048;
+                keyLight.shadow.mapSize.height = 2048;
+                this.scene.add(keyLight);
 
-                // 🌈 MULTISPECTRAL FILL LIGHTS
-                const spectralLights = [
-                    { color: 0xff0080, intensity: 4.0, pos: [-15, 15, 10] },    // Quantum Pink
-                    { color: 0x8000ff, intensity: 4.0, pos: [10, 12, -15] },    // Entanglement Purple
-                    { color: 0x00ff80, intensity: 3.5, pos: [-10, 8, -12] },    // Coherence Green
-                    { color: 0xffff00, intensity: 3.0, pos: [12, 5, 12] }       // Superposition Yellow
-                ];
+                // Fill light - soft blue from side
+                const fillLight = new THREE.DirectionalLight(0x4a6cff, 1.5);
+                fillLight.position.set(-8, 5, -5);
+                this.scene.add(fillLight);
 
-                spectralLights.forEach(lightConfig => {
-                    const light = new THREE.DirectionalLight(lightConfig.color, lightConfig.intensity);
-                    light.position.set(...lightConfig.pos);
-                    light.castShadow = true;
-                    this.scene.add(light);
-                });
+                // Rim light - warm accent from back
+                const rimLight = new THREE.DirectionalLight(0xff9d6b, 1);
+                rimLight.position.set(0, 8, -10);
+                this.scene.add(rimLight);
 
-                // 💫 POINT LIGHT MATRIX (Mathematical Distribution)
-                const pointLightCount = 12;
-                for(let i = 0; i < pointLightCount; i++) {
-                    const angle = (i / pointLightCount) * Math.PI * 2;
-                    const radius = 18;
-                    const height = 8 + Math.sin(angle * 3) * 3;
-                    
-                    const pointLight = new THREE.PointLight(0x4a6cff, 6.0, 30);
-                    pointLight.position.set(
-                        Math.cos(angle) * radius,
-                        height,
-                        Math.sin(angle) * radius
-                    );
-                    this.scene.add(pointLight);
-                }
-
-                // ☄️ AMBIENT QUANTUM FIELD
-                const ambientQuantum = new THREE.AmbientLight(0x4040a0, 2.5);
-                this.scene.add(ambientQuantum);
+                // Ambient overall light
+                const ambient = new THREE.AmbientLight(0x404080, 0.6);
+                this.scene.add(ambient);
             }
 
-            setupQuantumParticles() {
-                // 🎇 TRANSCENDENTAL PARTICLE SYSTEM
-                const particleMaterial = new THREE.ShaderMaterial({
-                    uniforms: {
-                        time: { value: 0 },
-                        fieldStrength: { value: 1.0 }
-                    },
-                    vertexShader: `
-                        attribute float phase;
-                        attribute float quantumState;
-                        varying vec3 vColor;
-                        varying float vAlpha;
-                        
-                        void main() {
-                            vec3 pos = position;
-                            // Quantum wave interference pattern
-                            float wave1 = sin(phase + time * (quantumState + 0.5));
-                            float wave2 = cos(phase * 2.0 + time * (quantumState + 1.0));
-                            float interference = wave1 * wave2;
-                            
-                            pos += normal * interference * 2.0;
-                            
-                            vColor = vec3(
-                                0.5 + 0.5 * sin(quantumState * 10.0 + time),
-                                0.5 + 0.5 * cos(quantumState * 8.0 + time * 1.3),
-                                0.5 + 0.5 * sin(quantumState * 12.0 + time * 0.7)
-                            );
-                            
-                            vAlpha = 0.8 + 0.2 * interference;
-                            
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                            gl_PointSize = 3.0 * (1.0 + interference * 0.5);
-                        }
-                    `,
-                    fragmentShader: `
-                        varying vec3 vColor;
-                        varying float vAlpha;
-                        
-                        void main() {
-                            vec2 coord = gl_PointCoord - vec2(0.5);
-                            float dist = length(coord);
-                            if(dist > 0.5) discard;
-                            
-                            // Quantum probability distribution (Gaussian)
-                            float alpha = vAlpha * exp(-dist * dist * 8.0);
-                            gl_FragColor = vec4(vColor, alpha);
-                        }
-                    `,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
-                });
-
-                this.particleSystem = new THREE.Points(this.transcendentalParticles.geometry, particleMaterial);
-                this.scene.add(this.particleSystem);
-            }
-
-            setupPostProcessing() {
-                this.composer = new EffectComposer(this.renderer);
-                const renderPass = new RenderPass(this.scene, this.camera);
-                this.composer.addPass(renderPass);
-
-                // 🌟 QUANTUM BLOOM EFFECT
-                const quantumBloom = new UnrealBloomPass(
-                    new THREE.Vector2(window.innerWidth, window.innerHeight),
-                    1.8,  // Extreme bloom strength
-                    0.6,  // Large radius
-                    0.3   // Low threshold
+            setupEnvironment() {
+                // Simple ground plane
+                const ground = new THREE.Mesh(
+                    new THREE.CircleGeometry(15, 32),
+                    new THREE.MeshStandardMaterial({ 
+                        color: 0x222233,
+                        roughness: 0.8,
+                        metalness: 0.1
+                    })
                 );
-                this.composer.addPass(quantumBloom);
-                this.quantumBloom = quantumBloom;
-
-                // 🌀 TRANSCENDENTAL SHADER PASS
-                const transcendentalPass = new ShaderPass({
-                    uniforms: {
-                        tDiffuse: { value: null },
-                        time: { value: 0 },
-                        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-                        fieldEnergy: { value: 0 }
-                    },
-                    vertexShader: `
-                        varying vec2 vUv;
-                        void main() {
-                            vUv = uv;
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                        }
-                    `,
-                    fragmentShader: `
-                        uniform sampler2D tDiffuse;
-                        uniform float time;
-                        uniform vec2 resolution;
-                        uniform float fieldEnergy;
-                        varying vec2 vUv;
-
-                        // Complex transcendental function
-                        vec2 complexExp(vec2 z) {
-                            return exp(z.x) * vec2(cos(z.y), sin(z.y));
-                        }
-
-                        // Riemann zeta inspired distortion
-                        vec2 transcendentalDistortion(vec2 uv, float t) {
-                            vec2 z = (uv - 0.5) * 2.0;
-                            for(int i = 0; i < 4; i++) {
-                                z = complexExp(z * 0.5 + vec2(0.0, t * 0.3)) * 0.5;
-                            }
-                            return z * 0.1 * fieldEnergy + uv;
-                        }
-
-                        void main() {
-                            vec2 uv = vUv;
-                            
-                            // Apply transcendental distortion
-                            vec2 distortedUV = transcendentalDistortion(uv, time);
-                            
-                            // Chromatic aberration using field theory
-                            float r = texture2D(tDiffuse, distortedUV + vec2(0.003 * fieldEnergy, 0.0)).r;
-                            float g = texture2D(tDiffuse, distortedUV).g;
-                            float b = texture2D(tDiffuse, distortedUV - vec2(0.003 * fieldEnergy, 0.0)).b;
-                            
-                            // Quantum interference pattern
-                            float interference = sin(uv.x * 50.0 + time * 3.0) * cos(uv.y * 30.0 + time * 2.0);
-                            vec3 finalColor = vec3(r, g, b) * (1.0 + interference * 0.1 * fieldEnergy);
-                            
-                            gl_FragColor = vec4(finalColor, 1.0);
-                        }
-                    `
-                });
-                this.composer.addPass(transcendentalPass);
-                this.transcendentalPass = transcendentalPass;
+                ground.rotation.x = -Math.PI / 2;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
             }
 
-            async loadPorcelainModel() {
+            loadModel() {
                 const loader = new GLTFLoader();
-                const loadingScreen = document.getElementById('loadingScreen');
-                const loadingProgress = document.getElementById('loadingProgress');
+                const loading = document.getElementById('loading');
 
-                try {
-                    const gltf = await new Promise((resolve, reject) => {
-                        loader.load(
-                            './porcelain.glb',
-                            resolve,
-                            (xhr) => {
-                                const percentComplete = (xhr.loaded / xhr.total) * 100;
-                                loadingProgress.style.width = percentComplete + '%';
-                            },
-                            reject
-                        );
-                    });
-
-                    this.porcelainModel = gltf.scene;
-                    this.processPorcelainModel();
-                    this.centerAndScaleModel();
-                    
-                    setTimeout(() => {
-                        loadingScreen.style.opacity = '0';
-                        setTimeout(() => loadingScreen.style.display = 'none', 1000);
-                    }, 800);
-
-                } catch (error) {
-                    console.error('Quantum Loading Error:', error);
-                    loadingScreen.innerHTML = '<div style="color: #ff0080;">QUANTUM ENTANGLEMENT FAILED</div>';
-                }
+                loader.load(
+                    './porcelain.glb',
+                    (gltf) => {
+                        this.porcelain = gltf.scene;
+                        this.setupPorcelain();
+                        loading.style.display = 'none';
+                    },
+                    (progress) => {
+                        // Simple progress feedback
+                        if (progress.lengthComputable) {
+                            const percent = (progress.loaded / progress.total) * 100;
+                            loading.textContent = `Loading: ${Math.round(percent)}%`;
+                        }
+                    },
+                    (error) => {
+                        console.error('Error loading model:', error);
+                        loading.innerHTML = 'Error loading model. Check console.';
+                        loading.style.color = '#ff6b6b';
+                    }
+                );
             }
 
-            processPorcelainModel() {
-                this.modelGroup.clear();
-                
-                this.porcelainModel.traverse((child) => {
+            setupPorcelain() {
+                // Enable shadows
+                this.porcelain.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
                         
+                        // Enhance materials for porcelain look
                         if (child.material) {
-                            // ULTRA-PRECISE PORCELAIN MATERIAL
-                            const porcelainMaterial = new THREE.MeshPhysicalMaterial({
-                                color: 0xffffff,
-                                roughness: 0.05,  // Near-perfect smoothness
-                                metalness: 0.02,  // Subtle metallic sheen
-                                clearcoat: 1.0,   // Maximum clearcoat
-                                clearcoatRoughness: 0.03,
-                                reflectivity: 1.0, // Perfect reflection
-                                transmission: 0.1, // Slight subsurface scattering
-                                ior: 1.45,        // Porcelain index of refraction
-                                specularIntensity: 1.0,
-                                envMapIntensity: 2.5  // High environment reflection
-                            });
-                            
-                            child.material = porcelainMaterial;
+                            child.material.roughness = 0.1;
+                            child.material.metalness = 0.0;
                         }
                     }
                 });
 
-                this.modelGroup.add(this.porcelainModel);
-                this.scene.add(this.modelGroup);
-            }
-
-            centerAndScaleModel() {
-                if (!this.porcelainModel) return;
-
-                const box = new THREE.Box3().setFromObject(this.modelGroup);
+                // Center and scale
+                const box = new THREE.Box3().setFromObject(this.porcelain);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 
-                this.modelGroup.position.sub(center);
-                this.modelGroup.position.y += 2; // Elevate for dramatic lighting
+                this.porcelain.position.sub(center);
+                this.porcelain.position.y += 2;
                 
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 5 / maxDim;
-                this.modelGroup.scale.setScalar(scale);
+                const scale = 4 / Math.max(size.x, size.y, size.z);
+                this.porcelain.scale.setScalar(scale);
+
+                this.scene.add(this.porcelain);
             }
 
-            updateQuantumReadings(deltaTime) {
-                // Calculate real quantum-inspired metrics
-                this.fieldEnergy = 0.5 + 0.3 * Math.sin(this.quantumField.time * 0.5);
-                this.particleDensity = 8000 + Math.floor(2000 * Math.sin(this.quantumField.time * 0.3));
-                this.coherence = 0.7 + 0.2 * Math.sin(this.quantumField.time * 0.7);
-                this.entropy = 0.3 + 0.2 * Math.cos(this.quantumField.time * 0.4);
-                
-                // Update HUD
-                document.getElementById('fieldEnergy').textContent = this.fieldEnergy.toFixed(3);
-                document.getElementById('particleDensity').textContent = this.particleDensity.toLocaleString();
-                document.getElementById('coherence').textContent = (this.coherence * 100).toFixed(1) + '%';
-                document.getElementById('entropy').textContent = this.entropy.toFixed(3);
-            }
-
-            setupEventListeners() {
-                document.addEventListener('keydown', (event) => {
-                    switch(event.code) {
-                        case 'Space':
-                            event.preventDefault();
-                            this.autoRotate = !this.autoRotate;
-                            break;
-                        case 'KeyR':
-                            this.controls.reset();
-                            break;
-                        case 'KeyF':
-                            this.container.requestFullscreen();
-                            break;
+            setupEvents() {
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        this.autoRotate = !this.autoRotate;
                     }
                 });
 
+                // Resize handling
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
                     this.camera.updateProjectionMatrix();
                     this.renderer.setSize(window.innerWidth, window.innerHeight);
-                    this.composer.setSize(window.innerWidth, window.innerHeight);
                 });
             }
 
             animate() {
-                const deltaTime = this.clock.getDelta();
-                const elapsedTime = this.clock.getElapsedTime();
-                
-                this.quantumField.time = elapsedTime;
+                requestAnimationFrame(() => this.animate());
 
-                // Update quantum systems
-                this.transcendentalParticles.update(deltaTime, this.quantumField);
-                this.updateQuantumReadings(deltaTime);
-
-                // Auto-rotation with quantum fluctuation
-                if (this.autoRotate && this.porcelainModel) {
-                    this.modelGroup.rotation.y += deltaTime * (0.3 + 0.1 * Math.sin(elapsedTime));
+                // Smooth auto-rotation
+                if (this.autoRotate && this.porcelain) {
+                    this.porcelain.rotation.y += 0.005;
                 }
 
-                // Dynamic effects with mathematical precision
-                const bloomIntensity = 1.5 + 0.5 * Math.sin(elapsedTime * 0.5) * Math.cos(elapsedTime * 0.3);
-                this.quantumBloom.strength = bloomIntensity;
-                
-                this.particleSystem.material.uniforms.time.value = elapsedTime;
-                this.particleSystem.material.uniforms.fieldStrength.value = this.fieldEnergy;
-                this.transcendentalPass.uniforms.time.value = elapsedTime;
-                this.transcendentalPass.uniforms.fieldEnergy.value = this.fieldEnergy;
-
                 this.controls.update();
-                this.composer.render();
-                requestAnimationFrame(() => this.animate());
+                this.renderer.render(this.scene, this.camera);
             }
         }
 
-        // 🚀 INITIALIZE TRANSCENDENTAL SYSTEM
-        new TranscendentalRenderer();
+        // Start the viewer
+        new PorcelainViewer();
     </script>
 </body>
 </html>
