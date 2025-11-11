@@ -1,51 +1,55 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Porcelain Transcendence</title>
+  <title>Porcelain Transcendence — Five Scenes</title>
   <style>
-    * { box-sizing: border-box; margin:0; padding:0; }
-    html,body { width:100%; height:100%; }
-    body {
-      background: #000;
-      color: #fff;
-      font-family: Inter, sans-serif;
-      overflow: hidden;
-      position: fixed;
-      width: 100%;
-      height: 100%;
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body,#container{height:100%;width:100%}
+    body{background:#000;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#fff;overflow:hidden}
+    #container{position:fixed;inset:0}
+    canvas{display:block}
+    .ui {
+      position: absolute; z-index: 60; pointer-events: none; inset: 0;
     }
-    #container { position: absolute; inset: 0; }
-    canvas { display:block; outline:none; }
-    .ui { position:absolute; z-index:10; pointer-events: none; inset:0; }
-    .hud { pointer-events: auto; position: absolute; left: 18px; top: 18px; background: rgba(0,0,0,0.45); padding:10px 12px; border-radius:8px; font-size:12px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.04); }
-    .controls { pointer-events:auto; position:absolute; left:18px; bottom:18px; background: rgba(0,0,0,0.45); padding:10px; border-radius:8px; font-size:11px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.04); }
-    .effects { position:absolute; right:18px; top:18px; pointer-events:auto; background: rgba(0,0,0,0.45); padding:10px; border-radius:8px; font-size:11px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.04); }
-    .loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; background:#000; }
-    .loading .bar { width:300px; height:3px; background: rgba(255,255,255,0.06); overflow:hidden; }
-    .loading .progress { height:100%; background: linear-gradient(90deg,#ff6b6b,#ffa86b,#ffd86b); width:0%; transition: width 0.2s ease; }
+    .panel {
+      pointer-events: auto;
+      position: absolute;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.05);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .top-left{left:16px;top:16px}
+    .bottom-left{left:16px;bottom:16px}
+    .top-right{right:16px;top:16px;text-align:right}
+    .scene-indicator{font-weight:600;opacity:0.95}
+    .controls small{opacity:0.8;display:block;margin-top:6px}
+    .hint{opacity:0.75;font-size:12px;margin-top:6px}
   </style>
 </head>
 <body>
   <div id="container"></div>
 
   <div class="ui">
-    <div class="hud">DRAG: ORBIT • SCROLL: ZOOM • SPACE: TOGGLE ROTATION</div>
-    <div class="effects">
-      <label><input id="cursorLightToggle" type="checkbox" checked> Cursor Light</label><br>
-      <label><input id="bloomToggle" type="checkbox" checked> Bloom</label><br>
-      <label><input id="particlesToggle" type="checkbox" checked> Particles</label>
+    <div class="panel top-left">
+      <div class="scene-indicator" id="sceneLabel">Scene 1 / 5 — Dawn Vessel</div>
+      <div class="hint">← → : Change Scene • SPACE : toggle motion • Click : reactive pulses</div>
     </div>
-    <div class="controls">
-      SPACE: Toggle Rotation • R: Reset Camera • F: Fullscreen
-    </div>
-  </div>
 
-  <div class="loading" id="loadingScreen">
-    <div style="text-align:center;">
-      <div style="font-size:18px;margin-bottom:10px;">PORCELAIN TRANSCENDENCE</div>
-      <div class="bar"><div id="loadingProgress" class="progress"></div></div>
+    <div class="panel top-right" id="toggles" style="text-align:right">
+      <label><input id="toggleBloom" type="checkbox" checked> Bloom</label><br>
+      <label><input id="toggleDOF" type="checkbox" checked> DOF</label><br>
+      <label><input id="toggleParticles" type="checkbox" checked> Particles</label>
+    </div>
+
+    <div class="panel bottom-left controls">
+      <div>DRAG: Orbit • SCROLL: Smooth Zoom</div>
+      <small>Move your mouse to let the cursor light "scan" the porcelain</small>
     </div>
   </div>
 
@@ -58,6 +62,9 @@
   }
   </script>
 
+  <!-- GSAP (used for transitions) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
   <script type="module">
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -65,68 +72,62 @@
   import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
   import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
   import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+  import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+  import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
 
-  // container & renderer
+  // ------------------------------------------------------------
+  // Core renderer, camera, composer
+  // ------------------------------------------------------------
   const container = document.getElementById('container');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
 
-  const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.05, 2000);
-  camera.position.set(6, 3.4, 6);
+  const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.05, 2000);
+  camera.position.set(8, 4.5, 9);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
-  if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
-  else renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMappingExposure = 1.05;
   renderer.physicallyCorrectLights = true;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
 
-  // controls
+  // Controls
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.06;
-  controls.minDistance = 1.4;
-  controls.maxDistance = 30;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.6;
+  controls.maxDistance = 40;
   controls.maxPolarAngle = Math.PI * 0.495;
 
-  // lighting: focused, minimal but high quality
-  // 1) Hemisphere - soft ambient fill
-  const hemi = new THREE.HemisphereLight(0xe8f5ff, 0x111012, 0.45);
-  scene.add(hemi);
+  // Composer & passes
+  const composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
 
-  // 2) Key directional (soft "studio" key)
-  const key = new THREE.DirectionalLight(0xffffff, 2.4);
-  key.position.set(7, 10, 6);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
-  key.shadow.camera.near = 0.5;
-  key.shadow.camera.far = 100;
-  key.shadow.bias = -0.0005;
-  // tighter shadow camera for crispness without artifact
-  const s = 20;
-  key.shadow.camera.left = -s; key.shadow.camera.right = s; key.shadow.camera.top = s; key.shadow.camera.bottom = -s;
-  scene.add(key);
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.35, 0.85);
+  composer.addPass(bloomPass);
 
-  // 3) Soft fill (cool)
-  const fill = new THREE.DirectionalLight(0xa8c8ff, 0.6);
-  fill.position.set(-6, 4, -4);
-  scene.add(fill);
+  const bokehPass = new BokehPass(scene, camera, {
+    focus: 20.0,
+    aperture: 0.0009,
+    maxblur: 0.01,
+    width: innerWidth,
+    height: innerHeight
+  });
+  composer.addPass(bokehPass);
 
-  // 4) Warm rim for separation
-  const rim = new THREE.DirectionalLight(0xfff0e6, 0.6);
-  rim.position.set(0, 4, -8);
-  scene.add(rim);
+  const filmPass = new FilmPass(0.0, 0.0, 0, false); // kept optional, disabled by default
+  composer.addPass(filmPass);
 
-  // PMREM for realistic reflections (keeps highlights crisp)
+  // PMREM generator for environment (will accept HDR later)
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
 
-  // placeholder small cubemap (keeps environment non-empty)
+  // small placeholder environment for consistent reflections
   const env = new THREE.CubeTextureLoader().load([
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
@@ -138,314 +139,568 @@
     scene.environment = pmrem.fromCubemap(env).texture;
   });
 
-  // ground and subtle reflection
-  const groundGeo = new THREE.PlaneGeometry(300, 300);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.8, metalness: 0.0 });
-  const ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
+  // ------------------------------------------------------------
+  // Shared environment: ground, subtle disc, shadow catcher
+  // ------------------------------------------------------------
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(400, 400),
+    new THREE.MeshStandardMaterial({ color: 0x040405, roughness: 0.85 })
+  );
+  ground.rotation.x = -Math.PI/2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // local glossy disc under object for subtle local reflections
-  const discGeo = new THREE.CircleGeometry(10, 64);
-  const discMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.5, metalness: 0.04 });
-  const disc = new THREE.Mesh(discGeo, discMat);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(10, 64), new THREE.MeshStandardMaterial({ color:0x0e0e10, roughness:0.5, metalness:0.04 }));
   disc.rotation.x = -Math.PI/2;
   disc.position.y = 0.001;
   disc.receiveShadow = true;
   scene.add(disc);
 
-  // post-processing: keep minimal and high quality
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.3, 0.85);
-  composer.addPass(bloom);
-
-  // particles: subtle, non-distracting
-  const ptsGeo = new THREE.BufferGeometry();
-  const count = 1200;
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  for (let i=0;i<count;i++){
-    const i3 = i*3;
-    const r = 10 + Math.random()*8;
-    const a = Math.random()*Math.PI*2;
-    const b = Math.acos(2*Math.random()-1);
-    positions[i3] = r*Math.sin(b)*Math.cos(a);
-    positions[i3+1] = r*Math.cos(b)*0.45;
-    positions[i3+2] = r*Math.sin(b)*Math.sin(a);
-    const c = new THREE.Color().setHSL(Math.random()*0.16 + 0.52, 0.7, 0.6);
-    colors[i3]=c.r; colors[i3+1]=c.g; colors[i3+2]=c.b;
-  }
-  ptsGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
-  ptsGeo.setAttribute('color', new THREE.BufferAttribute(colors,3));
-  const ptsMat = new THREE.PointsMaterial({ size:0.14, vertexColors: true, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
-  const particles = new THREE.Points(ptsGeo, ptsMat);
-  particles.renderOrder = 1;
-  scene.add(particles);
-
-  // model group
-  const modelGroup = new THREE.Group();
-  scene.add(modelGroup);
-
-  // invisible plane to raycast to when model misses
-  const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({ visible: false }));
+  // Raycaster and interaction plane
+  const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({ visible:false }));
   interactPlane.rotation.x = -Math.PI/2;
   interactPlane.position.y = 0;
   scene.add(interactPlane);
 
-  // loader & fallback
-  const loader = new GLTFLoader();
-  let porcelain = null;
-  const loadingScreen = document.getElementById('loadingScreen');
-  const loadingProgress = document.getElementById('loadingProgress');
-
-  function makePorcelainMaterial(baseColor = new THREE.Color(0xffffff)) {
-    return new THREE.MeshPhysicalMaterial({
-      color: baseColor,
-      roughness: 0.06,
-      metalness: 0.0,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.04,
-      reflectivity: 0.9,
-      envMapIntensity: 1.25,
-      side: THREE.FrontSide
-    });
-  }
-
-  function createFallbackPorcelain() {
-    // high-poly sphere as fallback porcelain object (smooth, not a cube)
-    const geo = new THREE.SphereGeometry(1.6, 128, 128);
-    const mat = makePorcelainMaterial();
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    // subtle sculpt-like deformation to avoid perfect sphere look
-    mesh.geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -0.25, 0));
-    return mesh;
-  }
-
-  loader.load('./porcelain.glb',
-    (gltf) => {
-      porcelain = gltf.scene;
-      // ensure we have at least one mesh; otherwise fallback
-      let foundMesh = false;
-      porcelain.traverse((c) => {
-        if (c.isMesh) foundMesh = true;
-      });
-
-      if (!foundMesh) {
-        console.warn('GLTF did not contain meshes — using fallback porcelain sphere.');
-        porcelain = createFallbackPorcelain();
-        modelGroup.add(porcelain);
-      } else {
-        // convert every mesh to high-quality PBR porcelain while preserving textures
-        porcelain.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            const orig = child.material || {};
-            const color = orig.color ? orig.color.clone() : new THREE.Color(0xffffff);
-            const mat = makePorcelainMaterial(color);
-            if (orig.map) mat.map = orig.map;
-            if (orig.normalMap) mat.normalMap = orig.normalMap;
-            if (orig.roughnessMap) mat.roughnessMap = orig.roughnessMap;
-            if (orig.metalnessMap) mat.metalnessMap = orig.metalnessMap;
-            // store baseline for gentle restoration if we do dynamic interactions
-            mat.userData = { baseRoughness: mat.roughness, baseEnv: mat.envMapIntensity, baseClearcoat: mat.clearcoat };
-            child.material = mat;
-          }
-        });
-        modelGroup.add(porcelain);
-      }
-
-      // center + scale + ground-align
-      const box = new THREE.Box3().setFromObject(modelGroup);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      modelGroup.position.sub(center);
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const targetHeight = 4.8;
-      const scale = (maxDim > 0) ? (targetHeight / maxDim) : 1.0;
-      modelGroup.scale.setScalar(scale);
-      modelGroup.updateWorldMatrix(true, true);
-      const afterBox = new THREE.Box3().setFromObject(modelGroup);
-      const minY = afterBox.min.y;
-      modelGroup.position.y -= minY;
-
-      // frame camera and controls
-      const modelHeight = afterBox.getSize(new THREE.Vector3()).y;
-      controls.target.set(0, modelHeight * 0.45, 0);
-      controls.update();
-      camera.position.set(modelHeight * 1.4, modelHeight * 0.9, modelHeight * 1.4);
-      camera.lookAt(controls.target);
-
-      // ensure env applied
-      modelGroup.traverse((m) => {
-        if (m.isMesh && m.material && scene.environment) {
-          m.material.envMap = scene.environment;
-          m.material.envMapIntensity = m.material.userData?.baseEnv ?? 1.25;
-          m.material.needsUpdate = true;
-        }
-      });
-
-      setTimeout(() => { loadingScreen.style.display = 'none'; }, 450);
-    },
-    (xhr) => {
-      if (xhr && xhr.lengthComputable) {
-        const pct = (xhr.loaded / xhr.total) * 100;
-        loadingProgress.style.width = pct + '%';
-      } else if (xhr && xhr.loaded) {
-        loadingProgress.style.width = Math.min(95, (xhr.loaded / 1000000) * 100) + '%';
-      }
-    },
-    (err) => {
-      console.error('Model load error, creating fallback porcelain:', err);
-      // fallback: create a visible porcelain when GLB fails
-      porcelain = createFallbackPorcelain();
-      modelGroup.add(porcelain);
-      modelGroup.updateWorldMatrix(true, true);
-      setTimeout(() => { loadingScreen.style.display = 'none'; }, 450);
-    }
-  );
-
-  // cursor light: single point light that follows pointer and softly modifies PBR
-  const cursorLight = new THREE.PointLight(0xfff9ea, 0.0, 28, 2.0);
+  // ------------------------------------------------------------
+  // Cursor light (shared): follows pointer, affects materials
+  // ------------------------------------------------------------
+  const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 28, 2.2);
   cursorLight.castShadow = true;
   cursorLight.shadow.mapSize.set(2048, 2048);
   scene.add(cursorLight);
 
-  const cursorMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfff6d9 }));
-  cursorMesh.frustumCulled = false;
-  scene.add(cursorMesh);
+  const cursorBall = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfff3d9 })
+  );
+  cursorBall.renderOrder = 999;
+  scene.add(cursorBall);
 
-  const ray = new THREE.Raycaster();
+  // glow sprite for cursor
+  const spriteMap = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteMap, color: 0xfff3d9, blending: THREE.AdditiveBlending, transparent:true, opacity:0.9, depthWrite:false }));
+  glow.scale.setScalar(0.8);
+  scene.add(glow);
+
+  // ------------------------------------------------------------
+  // Simple particle pool to trigger reactive pulses on click
+  // ------------------------------------------------------------
+  const pulseGroup = new THREE.Group(); scene.add(pulseGroup);
+  function spawnPulse(position, color = 0xffe6d1, count = 60) {
+    const geom = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);
+    for (let i=0;i<count;i++){
+      const phi = Math.acos(2*Math.random()-1);
+      const theta = Math.random()*Math.PI*2;
+      const r = 0.02 + Math.random()*0.08;
+      positions[i*3] = position.x + r*Math.sin(phi)*Math.cos(theta);
+      positions[i*3+1] = position.y + r*Math.cos(phi);
+      positions[i*3+2] = position.z + r*Math.sin(phi)*Math.sin(theta);
+      velocities[i*3] = (Math.random()-0.5)*0.9;
+      velocities[i*3+1] = Math.random()*1.2 + 0.2;
+      velocities[i*3+2] = (Math.random()-0.5)*0.9;
+    }
+    geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    geom.setAttribute('vel', new THREE.BufferAttribute(velocities,3));
+    const mat = new THREE.PointsMaterial({ color, size: 0.05, transparent:true, opacity:1, depthWrite:false });
+    const points = new THREE.Points(geom, mat);
+    points.userData.life = 1.0;
+    pulseGroup.add(points);
+    // schedule cleanup (handled in animate)
+  }
+
+  // ------------------------------------------------------------
+  // Scene class (modular) — each scene builds its own porcelain,
+  // lights, particles and behavior. Scenes expose enter/exit/update.
+  // ------------------------------------------------------------
+  class PorcelainScene {
+    constructor(opts = {}) {
+      this.name = opts.name || 'Untitled';
+      this.palette = opts.palette || { bg:0x000000, key:0xffffff };
+      this.group = new THREE.Group();
+      this.porcelain = null;
+      this.id = opts.id || 0;
+      this.lights = [];
+      this.particles = null;
+      this.motionEnabled = true;
+      this.make = opts.make; // function that returns mesh or group
+      this.setup();
+    }
+
+    setup(){
+      this.group.clear();
+      // subtle ambient volumetric-ish light (Hemisphere)
+      this.hemi = new THREE.HemisphereLight(0xddddff, 0x0a0a0d, 0.45);
+      this.group.add(this.hemi);
+
+      // key light created per scene for tonal control
+      this.key = new THREE.DirectionalLight(this.palette.key, 1.8);
+      this.key.castShadow = true;
+      this.key.shadow.mapSize.set(2048,2048);
+      this.key.shadow.camera.near = 0.5;
+      this.key.shadow.camera.far = 200;
+      this.key.position.set(6,10,6);
+      this.group.add(this.key);
+
+      // fill and rim
+      this.fill = new THREE.DirectionalLight(0x8fb3ff, 0.45);
+      this.fill.position.set(-6,5,-6);
+      this.group.add(this.fill);
+
+      this.rim = new THREE.DirectionalLight(0xffe6d0, 0.6);
+      this.rim.position.set(0,6,-8);
+      this.group.add(this.rim);
+
+      // porcelain
+      const p = this.make();
+      this.porcelain = p;
+      this.porcelain.traverse((c) => {
+        if (c.isMesh) {
+          c.castShadow = true;
+          c.receiveShadow = true;
+          // ensure physical material
+          if (!(c.material && c.material.isMeshPhysicalMaterial)) {
+            const base = (c.material && c.material.color) ? c.material.color.clone() : new THREE.Color(0xffffff);
+            const newMat = new THREE.MeshPhysicalMaterial({
+              color: base,
+              roughness: 0.06,
+              metalness: 0.0,
+              clearcoat: 1.0,
+              clearcoatRoughness: 0.04,
+              envMap: scene.environment,
+              envMapIntensity: 1.2,
+              side: THREE.FrontSide
+            });
+            if (c.material && c.material.map) newMat.map = c.material.map;
+            c.material = newMat;
+            c.material.userData = { baseRoughness:newMat.roughness, baseEnv:newMat.envMapIntensity, baseClearcoat:newMat.clearcoat };
+          }
+        }
+      });
+      this.group.add(this.porcelain);
+
+      // small particle halo for mood
+      const halo = new THREE.BufferGeometry();
+      const N = 900;
+      const pos = new Float32Array(N*3);
+      const col = new Float32Array(N*3);
+      for (let i=0;i<N;i++){
+        const i3 = i*3;
+        const r = 8 + Math.random()*6;
+        const theta = Math.random()*Math.PI*2;
+        const phi = Math.acos(2*Math.random()-1);
+        pos[i3] = r*Math.sin(phi)*Math.cos(theta);
+        pos[i3+1] = r*Math.cos(phi)*0.45;
+        pos[i3+2] = r*Math.sin(phi)*Math.sin(theta);
+        const c = new THREE.Color().setHSL(Math.random()*0.12 + (Math.random()*0.02+0.5), 0.7, 0.6);
+        col[i3] = c.r; col[i3+1]=c.g; col[i3+2]=c.b;
+      }
+      halo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+      halo.setAttribute('color', new THREE.BufferAttribute(col,3));
+      const pts = new THREE.Points(halo, new THREE.PointsMaterial({ size:0.12, vertexColors:true, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false }));
+      pts.renderOrder = 1;
+      this.particles = pts;
+      this.group.add(pts);
+
+      // bounding/scaling: center & scale to target height
+      const box = new THREE.Box3().setFromObject(this.group);
+      const center = box.getCenter(new THREE.Vector3());
+      this.group.position.sub(center);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x,size.y,size.z);
+      const target = 4.6;
+      const s = (maxDim>0) ? (target/maxDim) : 1;
+      this.group.scale.setScalar(s);
+      this.group.updateWorldMatrix(true,true);
+      // align to ground (y=0)
+      const box2 = new THREE.Box3().setFromObject(this.group);
+      const minY = box2.min.y;
+      this.group.position.y -= minY;
+    }
+
+    // called when switching to this scene
+    enter(cameraTarget = { position: new THREE.Vector3(), target: new THREE.Vector3() }) {
+      // subtly tint background
+      gsap.to(scene.background, { r: ((this.palette.bg >> 16) & 0xff)/255, g: ((this.palette.bg >> 8) & 0xff)/255, b: (this.palette.bg & 0xff)/255, duration: 0.9 });
+      // light intensities
+      gsap.fromTo(this.key, { intensity: 0.0 }, { intensity: 1.8, duration: 0.9, ease:'power2.out' });
+      gsap.fromTo(this.rim, { intensity:0.0 }, { intensity: 0.6, duration: 0.9, delay:0.1 });
+      gsap.fromTo(this.fill, { intensity:0.0 }, { intensity:0.45, duration:0.9, delay:0.12 });
+
+      // animate camera to scene-appropriate vantage
+      if (cameraTarget.position) {
+        gsap.to(camera.position, { x: cameraTarget.position.x, y: cameraTarget.position.y, z: cameraTarget.position.z, duration: 1.2, ease: 'expo.inOut' });
+      }
+      if (cameraTarget.target) {
+        gsap.to(controls.target, { x: cameraTarget.target.x, y: cameraTarget.target.y, z: cameraTarget.target.z, duration: 1.2, ease: 'expo.inOut', onUpdate: () => controls.update() });
+      }
+      // gentle bloom change
+      gsap.to(bloomPass, { strength: 0.85 + (this.id*0.12), duration: 0.9 });
+
+      // subtle particle show
+      gsap.fromTo(this.particles.material, { opacity: 0.0 }, { opacity: 0.88, duration: 1.2, ease: 'power2.out' });
+    }
+
+    exit() {
+      // fade lights and particles
+      gsap.to(this.key, { intensity: 0.0, duration: 0.9, ease:'power2.in' });
+      gsap.to(this.fill, { intensity: 0.0, duration: 0.85 });
+      gsap.to(this.rim, { intensity: 0.0, duration: 0.85 });
+      gsap.to(this.particles.material, { opacity: 0.0, duration: 0.7 });
+    }
+
+    // per-frame update
+    update(dt, elapsed, cursorWorld, cursorIntensity) {
+      // mood particle motion
+      this.particles.rotation.y += dt * (0.02 + this.id*0.01);
+      this.particles.rotation.x = Math.sin(elapsed * (0.05 + this.id*0.02)) * 0.06;
+
+      // porcelain motion
+      if (this.motionEnabled) {
+        this.porcelain.rotation.y += dt * (0.09 + this.id * 0.03);
+        this.porcelain.position.y = Math.sin(elapsed * (0.4 + this.id*0.1)) * 0.03 * (1 + this.id*0.3);
+      }
+
+      // cursor-based material interaction: make highlights sharper where cursor is near
+      if (cursorWorld && cursorIntensity > 0.02) {
+        const meshes = [];
+        this.porcelain.traverse((m) => { if (m.isMesh) meshes.push(m); });
+        for (let m of meshes) {
+          const w = new THREE.Vector3(); m.getWorldPosition(w);
+          const d = Math.min(1.0, cursorWorld.distanceTo(w) / 4.5); // 0..1
+          const effect = 1.0 - d;
+          const origR = m.material.userData?.baseRoughness ?? 0.06;
+          const origEnv = m.material.userData?.baseEnv ?? 1.2;
+          const targetR = THREE.MathUtils.clamp(origR * (0.25 + (1 - effect)*1.0), 0.02, 1.0);
+          const targetEnv = THREE.MathUtils.lerp(origEnv, origEnv + 2.2 * effect * cursorIntensity, 0.9);
+          m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, targetR, 0.18);
+          m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || origEnv, targetEnv, 0.18);
+          m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || 1.0, Math.min(1.0, (m.material.userData.baseClearcoat || 1.0) + 0.5 * effect), 0.18);
+          m.material.needsUpdate = true;
+        }
+      } else {
+        // gently restore
+        this.porcelain.traverse((m) => {
+          if (m.isMesh && m.material && m.material.userData) {
+            m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, m.material.userData.baseRoughness || 0.06, 0.04);
+            m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || (m.material.userData.baseEnv || 1.2), m.material.userData.baseEnv || 1.2, 0.03);
+            m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || (m.material.userData.baseClearcoat||1.0), m.material.userData.baseClearcoat||1.0, 0.03);
+            m.material.needsUpdate = true;
+          }
+        });
+      }
+    }
+
+    toggleMotion(flag) { this.motionEnabled = flag; }
+  }
+
+  // ------------------------------------------------------------
+  // Five porcelain "makers" — either procedural or loading glb
+  // These create meshes with distinct silhouettes/feels.
+  // ------------------------------------------------------------
+  function makeVesselA() {
+    // smooth tall vase — Dawn Vessel (scene 1)
+    const lathePts = [];
+    for (let i=0;i<20;i++){
+      const t = i/19;
+      const x = 0.6 + Math.sin(t*Math.PI)*0.8 * (0.5 + 0.5*t);
+      const y = -1 + t*2.2;
+      lathePts.push(new THREE.Vector2(x, y));
+    }
+    const geo = new THREE.LatheGeometry(lathePts, 128);
+    const mat = new THREE.MeshPhysicalMaterial({ color:0xf7f8fb, roughness:0.06, clearcoat:1.0, envMap: scene.environment, envMapIntensity: 1.4});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function makePlateB() {
+    // wide shallow plate — Calm Mirror (scene 2)
+    const ring = new THREE.RingGeometry(0.5, 2.0, 128);
+    const bowl = new THREE.SphereGeometry(2.2, 128, 128, 0, Math.PI*2, 0, Math.PI/2);
+    bowl.scale(1,0.38,1);
+    const mat = new THREE.MeshPhysicalMaterial({ color:0xeaf6ff, roughness:0.03, clearcoat:1.0, envMap: scene.environment, envMapIntensity: 1.6 });
+    const combo = new THREE.Group();
+    const rim = new THREE.Mesh(ring, mat.clone());
+    rim.rotation.x = -Math.PI/2; rim.position.y = 0.01; rim.receiveShadow = true;
+    const center = new THREE.Mesh(bowl, mat.clone()); center.position.y = 0.02; center.castShadow = true;
+    combo.add(center, rim);
+    return combo;
+  }
+
+  function makeMiniSculptC() {
+    // abstract folded porcelain — Whim (scene 3)
+    const geo = new THREE.TorusKnotGeometry(0.9, 0.25, 256, 32, 2, 3);
+    geo.rotateX(Math.PI*0.1);
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xffefef, roughness: 0.08, clearcoat: 1.0, envMap: scene.environment, envMapIntensity: 1.2 });
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = m.receiveShadow = true;
+    return m;
+  }
+
+  function makeTallCylinderD() {
+    // slender cylinder with cutouts — Echo (scene 4)
+    const geo = new THREE.CylinderGeometry(0.8,0.8,3.6,64,1,true);
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xfffffb, roughness: 0.06, clearcoat: 1.0, envMap: scene.environment, envMapIntensity: 1.2 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function makeBowlE() {
+    // deep bowl with glaze — Night Bloom (scene 5)
+    const geo = new THREE.SphereGeometry(1.8, 128, 128, 0, Math.PI*2, 0, Math.PI/1.7);
+    geo.scale(1,0.7,1);
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xe8f2ff, roughness: 0.02, clearcoat:0.9, envMap: scene.environment, envMapIntensity:1.8 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  // ------------------------------------------------------------
+  // Build scenes array
+  // ------------------------------------------------------------
+  const scenes = [
+    new PorcelainScene({ id:0, name:'Dawn Vessel', palette:{ bg:0x05050A, key:0xfff8e8 }, make: makeVesselA }),
+    new PorcelainScene({ id:1, name:'Calm Mirror', palette:{ bg:0x071022, key:0xdfefff }, make: makePlateB }),
+    new PorcelainScene({ id:2, name:'Whim', palette:{ bg:0x10040a, key:0xffefe9 }, make: makeMiniSculptC }),
+    new PorcelainScene({ id:3, name:'Echo Column', palette:{ bg:0x071011, key:0xfffff6 }, make: makeTallCylinderD }),
+    new PorcelainScene({ id:4, name:'Night Bloom', palette:{ bg:0x040618, key:0xe6f0ff }, make: makeBowlE })
+  ];
+
+  // add first scene to world
+  let currentIndex = 0;
+  scene.add(scenes[0].group);
+
+  // set camera framing target for each scene (tuned per scene)
+  const sceneCameraTargets = [
+    { position: new THREE.Vector3(6,3.5,6), target: new THREE.Vector3(0,1.1,0) }, // 1
+    { position: new THREE.Vector3(5.5,2.8,5.8), target: new THREE.Vector3(0,0.85,0) }, // 2
+    { position: new THREE.Vector3(7,3.4,7), target: new THREE.Vector3(0,0.8,0) }, // 3
+    { position: new THREE.Vector3(6.2,3.8,6.2), target: new THREE.Vector3(0,1.4,0) }, //4
+    { position: new THREE.Vector3(7.5,3.6,7.8), target: new THREE.Vector3(0,0.9,0) } //5
+  ];
+
+  // scene label UI
+  const sceneLabel = document.getElementById('sceneLabel');
+  function updateSceneLabel() {
+    sceneLabel.textContent = `Scene ${currentIndex+1} / 5 — ${scenes[currentIndex].name}`;
+  }
+  updateSceneLabel();
+
+  // enter first scene
+  scenes[currentIndex].enter(sceneCameraTargets[currentIndex]);
+
+  // ------------------------------------------------------------
+  // Scene switching with GSAP cinematic camera motion
+  // ------------------------------------------------------------
+  let transitioning = false;
+  function gotoScene(index, direction = 1) {
+    if (transitioning || index === currentIndex || index < 0 || index >= scenes.length) return;
+    transitioning = true;
+    const from = scenes[currentIndex];
+    const to = scenes[index];
+
+    // add next group's object to scene for smooth crossfade
+    scene.add(to.group);
+
+    // compute camera flight path: spiral / zoom depending on direction
+    const startPos = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const endPos = sceneCameraTargets[index].position;
+    const endTarget = sceneCameraTargets[index].target;
+
+    const flightDuration = 1.2;
+
+    // animate a cinematic camera path using gsap (position + target)
+    gsap.to(camera.position, {
+      x: endPos.x, y: endPos.y, z: endPos.z,
+      duration: flightDuration,
+      ease: "power2.inOut",
+      onUpdate: () => { camera.updateProjectionMatrix(); }
+    });
+    gsap.to(controls.target, {
+      x: endTarget.x, y: endTarget.y, z: endTarget.z,
+      duration: flightDuration,
+      ease: "power2.inOut",
+      onUpdate: () => controls.update()
+    });
+
+    // crossfade lights and bloom
+    from.exit();
+    to.enter(sceneCameraTargets[index]);
+
+    // after camera movement settle, remove previous scene group
+    gsap.delayedCall(flightDuration + 0.08, () => {
+      scene.remove(from.group);
+      currentIndex = index;
+      updateSceneLabel();
+      transitioning = false;
+    });
+  }
+
+  // keyboard navigation
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowRight') gotoScene((currentIndex+1)%scenes.length, 1);
+    if (e.code === 'ArrowLeft') gotoScene((currentIndex-1+scenes.length)%scenes.length, -1);
+    if (e.code === 'Space') {
+      scenes[currentIndex].toggleMotion(!scenes[currentIndex].motionEnabled);
+    }
+  });
+
+  // ------------------------------------------------------------
+  // Pointer, scroll, click interactions
+  // ------------------------------------------------------------
+  const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2(-10, -10);
   let pointerActive = false;
-  let lastTime = 0;
+  let lastInteractionTime = performance.now();
 
-  function onPointer(e) {
+  function onPointerMove(e) {
     const rect = renderer.domElement.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    mouse.set(x, y);
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = - ((e.clientY - rect.top) / rect.height) * 2 + 1;
     pointerActive = true;
-    lastTime = performance.now();
+    lastInteractionTime = performance.now();
   }
-  window.addEventListener('mousemove', onPointer, { passive:true });
-  window.addEventListener('pointerdown', onPointer, { passive:true });
-  window.addEventListener('pointerup', () => { pointerActive = false; lastTime = performance.now(); }, { passive:true });
+  window.addEventListener('mousemove', onPointerMove, { passive: true });
+  window.addEventListener('pointerdown', (e) => {
+    onPointerMove(e);
+    // spawn a pulse at intersection point
+    const pos = computeCursorWorld();
+    spawnPulse(pos, 0xfff0d8, 80);
+  }, { passive: true });
+  window.addEventListener('pointerup', () => { pointerActive = false; lastInteractionTime = performance.now(); }, { passive: true });
 
-  // simple mapping: raycast to model if present else plane
-  function computeCursor3D() {
-    ray.setFromCamera(mouse, camera);
-    if (porcelain) {
-      const meshes = [];
-      modelGroup.traverse((c) => { if (c.isMesh) meshes.push(c); });
-      const ints = ray.intersectObjects(meshes, true);
-      if (ints.length > 0) return ints[0].point.clone();
+  // smooth scroll to zoom
+  let scrollTarget = camera.position.z;
+  window.addEventListener('wheel', (e) => {
+    const delta = e.deltaY * 0.003;
+    scrollTarget += delta * 6.0;
+    scrollTarget = THREE.MathUtils.clamp(scrollTarget, 2.2, 40);
+  }, { passive: true });
+
+  function computeCursorWorld() {
+    raycaster.setFromCamera(mouse, camera);
+    // intersect current porcelain first
+    const curScene = scenes[currentIndex];
+    if (curScene && curScene.porcelain) {
+      const meshes = []; curScene.porcelain.traverse((m)=>{ if (m.isMesh) meshes.push(m); });
+      const ints = raycaster.intersectObjects(meshes, true);
+      if (ints.length>0) return ints[0].point.clone();
     }
-    const pints = ray.intersectObject(interactPlane, true);
-    if (pints.length > 0) return pints[0].point.clone();
-    // fallback project into view
+    // otherwise plane
+    const ints2 = raycaster.intersectObject(interactPlane);
+    if (ints2.length>0) return ints2[0].point.clone();
     return new THREE.Vector3(mouse.x, mouse.y, 0.5).unproject(camera);
   }
 
-  // animation loop (focused, minimal distractions)
-  const clock = new THREE.Clock();
-  let autoRotate = true;
-
-  function animate() {
-    const dt = clock.getDelta();
-    const t = clock.getElapsedTime();
-
-    // subtle particle motion
-    particles.rotation.y += dt * 0.03;
-    particles.rotation.x = Math.sin(t * 0.09) * 0.04;
-
-    // cursor light dynamics
-    const now = performance.now();
-    const inactive = (now - lastTime) > 900 && !pointerActive;
-    const target3D = computeCursor3D();
-    // smooth follow
-    cursorLight.position.lerp(target3D, 0.14);
-    cursorMesh.position.lerp(target3D, 0.14);
-    // intensity depends on proximity to model center and recent pointer
-    const worldCenter = new THREE.Vector3();
-    modelGroup.getWorldPosition(worldCenter);
-    const dist = target3D.distanceTo(worldCenter);
-    const proximity = 1.0 - Math.min(1.0, dist / 12.0);
-    const activeFactor = inactive ? 0.06 : 1.0;
-    const intensity = THREE.MathUtils.lerp(cursorLight.intensity, (0.04 + proximity * 6.2) * activeFactor, 0.12);
-    cursorLight.intensity = intensity;
-    cursorMesh.scale.lerp(new THREE.Vector3(1,1,1).multiplyScalar(0.9 + proximity * 1.4), 0.12);
-
-    // gently interact with materials: lower roughness near cursor to create specular sweep
-    if (porcelain && intensity > 0.06) {
-      const meshes = [];
-      modelGroup.traverse((m) => { if (m.isMesh) meshes.push(m); });
-      for (let m of meshes) {
-        const wp = new THREE.Vector3(); m.getWorldPosition(wp);
-        const d = Math.min(1.0, m.position.distanceTo(target3D) / 6.0);
-        const effect = 1.0 - d;
-        const baseR = m.material.userData?.baseRoughness ?? 0.06;
-        const baseE = m.material.userData?.baseEnv ?? 1.25;
-        m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, Math.max(0.02, baseR * (0.2 + (1-effect)*1.0)), 0.18);
-        m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity||baseE, baseE + 1.6 * effect * (intensity / 6.2), 0.18);
-        m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || 1.0, Math.min(1.0, (m.material.userData?.baseClearcoat||1.0) + 0.6*effect), 0.18);
-        m.material.needsUpdate = true;
-      }
-    } else if (porcelain) {
-      // restore slowly
-      porcelain.traverse((m) => {
-        if (m.isMesh && m.material && m.material.userData) {
-          m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, m.material.userData.baseRoughness ?? 0.06, 0.04);
-          m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || (m.material.userData.baseEnv || 1.25), m.material.userData.baseEnv || 1.25, 0.03);
-          m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || (m.material.userData.baseClearcoat || 1.0), m.material.userData.baseClearcoat || 1.0, 0.03);
-          m.material.needsUpdate = true;
-        }
-      });
-    }
-
-    // auto rotate group to keep composition alive but subtle
-    if (autoRotate && porcelain) modelGroup.rotation.y += dt * 0.12;
-
-    controls.update();
-    composer.render();
-    requestAnimationFrame(animate);
-  }
-
-  // simple key controls
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space') autoRotate = !autoRotate;
-    if (e.code === 'KeyR') controls.reset();
-    if (e.code === 'KeyF') {
-      if (!document.fullscreenElement) container.requestFullscreen().catch(() => {});
-      else document.exitFullscreen().catch(() => {});
-    }
-  });
-
-  // UI toggles
-  const cursorLightToggle = document.getElementById('cursorLightToggle');
-  const bloomToggle = document.getElementById('bloomToggle');
-  const particlesToggle = document.getElementById('particlesToggle');
-
-  cursorLightToggle.addEventListener('change', () => {
-    cursorLight.visible = cursorMesh.visible = cursorLightToggle.checked;
-    if (!cursorLightToggle.checked) cursorLight.intensity = 0;
-  });
-  bloomToggle.addEventListener('change', () => bloom.enabled = bloomToggle.checked);
-  particlesToggle.addEventListener('change', () => particles.visible = particlesToggle.checked);
-
-  // resize
+  // ------------------------------------------------------------
+  // Resize
+  // ------------------------------------------------------------
   window.addEventListener('resize', () => {
     camera.aspect = innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
     composer.setSize(innerWidth, innerHeight);
+    bokehPass.uniforms['width'].value = innerWidth;
+    bokehPass.uniforms['height'].value = innerHeight;
   });
 
-  // start
+  // ------------------------------------------------------------
+  // UI toggles wiring
+  // ------------------------------------------------------------
+  const toggleBloom = document.getElementById('toggleBloom');
+  const toggleDOF = document.getElementById('toggleDOF');
+  const toggleParticles = document.getElementById('toggleParticles');
+
+  toggleBloom.addEventListener('change', () => bloomPass.enabled = toggleBloom.checked);
+  toggleDOF.addEventListener('change', () => bokehPass.enabled = toggleDOF.checked);
+  toggleParticles.addEventListener('change', () => {
+    scenes.forEach(s => { if (s.particles) s.particles.visible = toggleParticles.checked; });
+  });
+
+  // ------------------------------------------------------------
+  // Animate loop
+  // ------------------------------------------------------------
+  const clock = new THREE.Clock();
+
+  function animate() {
+    const dt = Math.min(0.05, clock.getDelta());
+    const elapsed = clock.getElapsedTime();
+
+    // smooth scroll zoom towards scrollTarget -> adjust camera along its forward vector
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const currentZ = camera.position.length();
+    // instead, lerp camera position along vector from controls.target
+    // compute desired camera position by direction from controls.target
+    const desiredDistance = THREE.MathUtils.lerp(camera.position.distanceTo(controls.target), scrollTarget, 0.06);
+    const newCamPos = new THREE.Vector3().copy(camDir).multiplyScalar(-desiredDistance).add(controls.target);
+    camera.position.lerp(newCamPos, 0.08);
+
+    // compute cursor world and intensity
+    let cursorWorld = null;
+    let cursorIntensity = 0;
+    if (mouse.x > -9) {
+      cursorWorld = computeCursorWorld();
+      const worldCenter = new THREE.Vector3();
+      scenes[currentIndex].group.getWorldPosition(worldCenter);
+      const dist = cursorWorld.distanceTo(worldCenter);
+      cursorIntensity = THREE.MathUtils.clamp(1.0 - (dist / 10.0), 0.0, 1.0);
+    }
+
+    // update cursor light & visuals
+    if (cursorWorld) {
+      cursorLight.position.lerp(cursorWorld, 0.18);
+      cursorBall.position.lerp(cursorWorld, 0.17);
+      glow.position.lerp(new THREE.Vector3().copy(cursorWorld).add(new THREE.Vector3().subVectors(camera.position, cursorWorld).setLength(0.06)), 0.18);
+      const intended = 0.04 + cursorIntensity * 6.0;
+      cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, intended, 0.12);
+      // glow scale and opacity
+      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.9 * (cursorIntensity*0.85 + 0.15), 0.12);
+      const gS = THREE.MathUtils.lerp(glow.scale.x, 0.3 + cursorIntensity*2.2, 0.12);
+      glow.scale.setScalar(gS);
+    } else {
+      // fade out when offscreen
+      cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, 0.0, 0.06);
+      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.0, 0.05);
+    }
+
+    // update pulses
+    for (let i = pulseGroup.children.length - 1; i >= 0; i--) {
+      const p = pulseGroup.children[i];
+      p.userData.life -= dt * 0.8;
+      const posAttr = p.geometry.attributes.position;
+      const velAttr = p.geometry.attributes.vel;
+      for (let v=0; v<posAttr.count; v++){
+        posAttr.array[v*3] += velAttr.array[v*3] * dt;
+        posAttr.array[v*3+1] += velAttr.array[v*3+1] * dt;
+        posAttr.array[v*3+2] += velAttr.array[v*3+2] * dt;
+        // gravity
+        velAttr.array[v*3+1] -= dt * 0.9;
+      }
+      posAttr.needsUpdate = true;
+      velAttr.needsUpdate = true;
+      p.material.opacity = Math.max(0, p.userData.life);
+      if (p.userData.life <= 0) {
+        pulseGroup.remove(p);
+        p.geometry.dispose();
+        p.material.dispose();
+      }
+    }
+
+    // scene updates for current scene
+    scenes[currentIndex].update(dt, elapsed, cursorWorld, cursorIntensity);
+
+    controls.update();
+    composer.render();
+
+    requestAnimationFrame(animate);
+  }
+
   requestAnimationFrame(animate);
   </script>
 </body>
