@@ -3,55 +3,41 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Porcelain Transcendence — Five Scenes Engine</title>
+  <title>Porcelain Transcendence — v7-stable (refined)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #container { height: 100%; width: 100%; }
-    body {
-      background: #000;
-      color: #fff;
-      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      overflow: hidden;
-    }
+    html,body,#container { height: 100%; width: 100%; }
+    body { background: #000; color: #fff; font-family: "Segoe UI", Inter, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial; overflow: hidden; }
     #container { position: fixed; inset: 0; }
-    canvas { display: block; touch-action: none; } /* prevents browser gestures interfering */
+    canvas { display: block; touch-action: none; }
     .ui { position: absolute; z-index: 60; inset: 0; pointer-events: none; }
-    .panel {
-      pointer-events: auto;
-      position: absolute;
-      background: rgba(0,0,0,0.45);
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(255,255,255,0.05);
-      padding: 10px 12px;
-      border-radius: 10px;
-      font-size: 13px;
-      line-height: 1.4;
-    }
+    .panel { pointer-events: auto; position: absolute; background: rgba(0,0,0,0.45); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.06); padding: 10px 12px; border-radius: 10px; font-size: 13px; }
     .top-left { left: 16px; top: 16px; }
     .top-right { right: 16px; top: 16px; text-align: right; }
     .bottom-left { left: 16px; bottom: 16px; }
-    .scene-indicator { font-weight: 600; opacity: 0.95; }
-    .small { font-size: 12px; opacity: 0.8; }
+    .small { font-size: 12px; opacity: 0.85; }
+    button { cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="container" role="application" aria-label="Porcelain Transcendence canvas"></div>
 
-  <div class="ui" aria-hidden="false">
+  <div class="ui">
     <div class="panel top-left" role="region" aria-label="Scene information">
-      <div id="sceneLabel" class="scene-indicator" role="status" aria-live="polite">Scene 1 / 5 — Dawn Vessel</div>
-      <div class="small">← → : Change Scene • SPACE : Toggle Motion • Click : Reactive Pulse</div>
+      <div id="sceneLabel" role="status" aria-live="polite">Scene 1 / 5 — Dawn Vessel</div>
+      <div class="small">← → : Scenes • SCROLL: Chapters • DRAG: Orbit • PINCH: Zoom • SPACE: Toggle Motion</div>
     </div>
 
-    <div class="panel top-right" role="region" aria-label="Effects toggles">
+    <div class="panel top-right" role="region" aria-label="Controls">
       <label><input id="toggleBloom" type="checkbox" checked> Bloom</label><br>
       <label><input id="toggleDOF" type="checkbox"> DOF</label><br>
       <label><input id="toggleParticles" type="checkbox" checked> Particles</label><br>
-      <label><input id="toggleAudio" type="checkbox"> Audio Reactive</label>
+      <label><input id="toggleAudio" type="checkbox"> Audio Reactive</label><br>
+      <button id="fsBtn">Fullscreen</button>
     </div>
 
-    <div class="panel bottom-left" role="region" aria-label="Controls">
-      <div class="small">DRAG: Orbit • PINCH: Zoom • SCROLL: Stage Chapters</div>
+    <div class="panel bottom-left" role="region" aria-label="Hints">
+      <div class="small">Four chapters per scene. Scroll to change chapter (one notch → one chapter). Prefetch occurs on penultimate chapter.</div>
     </div>
   </div>
 
@@ -69,24 +55,28 @@
   <script type="module">
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
   import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
   import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
   import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
   import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
   import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+  import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-  // ---------- Engine-level constants & one-time clamps ----------
+  // One-time sizing & DPR clamp (v7 base)
   const container = document.getElementById('container');
-  const DPR = Math.min(window.devicePixelRatio || 1, 2); // clamp once
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
   const WIDTH = () => window.innerWidth;
   const HEIGHT = () => window.innerHeight;
 
-  // ---------- Core scene, camera, renderer ----------
+  // Hoisted raycast state
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2(-10, -10);
+
+  // Scene + Camera + Renderer
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
-  scene.fog = new THREE.FogExp2(0x000010, 0.035); // depth
+  scene.background = new THREE.Color(0x0c0710); // slightly lifted; controlled
+  scene.fog = new THREE.FogExp2(0x000013, 0.028);
 
   const camera = new THREE.PerspectiveCamera(45, WIDTH()/HEIGHT(), 0.05, 2000);
   camera.position.set(8, 4.5, 9);
@@ -97,857 +87,592 @@
   if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
   else renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
-  renderer.physicallyCorrectLights = true;
+  renderer.toneMappingExposure = 0.95; // keep stable
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
 
-  // ---------- Controls: orbit but we own zoom ----------
+  // Controls (disable zoom here)
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.maxPolarAngle = Math.PI * 0.495;
+  controls.dampingFactor = 0.06;
   controls.enableZoom = false;
   controls.minDistance = 1.6;
   controls.maxDistance = 40;
+  controls.maxPolarAngle = Math.PI * 0.495;
 
-  // ---------- Composer (postprocessing) ----------
+  // Composer + passes
   const composer = new EffectComposer(renderer);
   composer.setSize(WIDTH(), HEIGHT());
   composer.setPixelRatio(DPR);
   composer.addPass(new RenderPass(scene, camera));
 
-  // Bloom per specification: strength 0.55 threshold 0.85 radius 0.6
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(WIDTH(), HEIGHT()), 0.55, 0.6, 0.85);
   composer.addPass(bloomPass);
 
-  // Bokeh (DOF) lazy enable (we add pass but enable only via toggle)
-  const bokehPass = new BokehPass(scene, camera, {
-    focus: 20.0,
-    aperture: 0.0009,
-    maxblur: 0.01,
-    width: WIDTH(),
-    height: HEIGHT()
-  });
+  const bokehPass = new BokehPass(scene, camera, { focus: 20.0, aperture: 0.00085, maxblur: 0.015, width: WIDTH(), height: HEIGHT() });
   bokehPass.enabled = false;
   composer.addPass(bokehPass);
 
-  // SMAA for cleaner thin highlights
-  const smaaPass = new SMAAPass(WIDTH(), HEIGHT());
+  const smaaPass = new SMAAPass(Math.floor(WIDTH()*DPR), Math.floor(HEIGHT()*DPR));
   composer.addPass(smaaPass);
 
-  // FilmPass intentionally not added by default (left out)
+  // Grade + vignette (fixed smoothstep order and clamp)
+  const GradeVignettePass = new ShaderPass(new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      uGrade: { value: new THREE.Vector3(1,1,1) },
+      uVignette: { value: 0.34 },
+      uVignetteSoft: { value: 0.35 }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform vec3 uGrade;
+      uniform float uVignette;
+      uniform float uVignetteSoft;
+      varying vec2 vUv;
+      void main(){
+        vec4 c = texture2D(tDiffuse, vUv);
+        vec3 graded = pow(c.rgb, vec3(0.95)) * uGrade;
+        float d = length(vUv - vec2(0.5));
+        float vig = smoothstep(uVignette - uVignetteSoft, uVignette, d);
+        graded *= mix(1.0, 0.86, vig);
+        graded = min(graded, vec3(1.0));
+        gl_FragColor = vec4(graded, c.a);
+      }
+    `
+  }), 'tDiffuse');
+  composer.addPass(GradeVignettePass);
 
-  // ---------- PMREM lifecycle ----------
+  // PMREM/HDR lifecycle (placeholder small cube, HDR optional)
   let pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   let currentEnv = null;
-  function assignEnvironment(envTex) {
-    if (currentEnv && currentEnv.dispose) {
-      try { currentEnv.dispose(); } catch (e) {}
-    }
-    currentEnv = envTex;
+  function setEnvironment(tex){
+    if(currentEnv && currentEnv.dispose) try{ currentEnv.dispose(); }catch(e){}
+    currentEnv = tex;
     scene.environment = currentEnv;
   }
-
-  // placeholder environment baked into PMREM (so env is non-null quickly)
-  (function bakePlaceholder() {
-    const cubeUrls = new Array(6).fill('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
-    const tmp = new THREE.CubeTextureLoader().load(cubeUrls, () => {
-      const envRT = pmrem.fromCubemap(tmp).texture;
-      try { tmp.dispose(); } catch(e) {}
-      assignEnvironment(envRT);
+  (function bakeTinyCube(){
+    const urls = new Array(6).fill('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+    new THREE.CubeTextureLoader().load(urls, (cube)=>{
+      const env = pmrem.fromCubemap(cube).texture;
+      try{ cube.dispose(); }catch(e){}
+      setEnvironment(env);
     });
   })();
-
-  // Try load HDR (non-blocking, lifecycle-safe)
-  const rgbeLoader = new RGBELoader();
-  rgbeLoader.setDataType(THREE.UnsignedByteType);
-  rgbeLoader.load('textures/studio_small_04_1k.hdr', (hdr) => {
+  new RGBELoader().setDataType(THREE.UnsignedByteType).load('textures/studio_small_04_1k.hdr', (hdr)=>{
     hdr.mapping = THREE.EquirectangularReflectionMapping;
-    const envRT = pmrem.fromEquirectangular(hdr).texture;
-    try { hdr.dispose && hdr.dispose(); } catch (e) {}
-    assignEnvironment(envRT);
-    try { pmrem.dispose(); } catch (e) {}
+    const env = pmrem.fromEquirectangular(hdr).texture;
+    try{ hdr.dispose && hdr.dispose(); }catch(e){}
+    setEnvironment(env);
+    try{ pmrem.dispose(); }catch(e){}
     pmrem = new THREE.PMREMGenerator(renderer);
-  }, undefined, (err) => {
-    console.warn('HDR failed to load (optional):', err);
-  });
+  }, undefined, ()=>{});
 
-  // ---------- Shared ground & disc (we will freeze/unfreeze shadows during transitions) ----------
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshStandardMaterial({ color: 0x040405, roughness: 0.85 }));
-  ground.rotation.x = -Math.PI/2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  // Ground & disc + interaction plane (single)
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshStandardMaterial({ color:0x040405, roughness:0.85 }));
+  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
 
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(10, 64), new THREE.MeshStandardMaterial({ color:0x0e0e10, roughness:0.45, metalness:0.04 }));
-  disc.rotation.x = -Math.PI/2;
-  disc.position.y = 0.001;
-  disc.receiveShadow = true;
-  scene.add(disc);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(10,64), new THREE.MeshStandardMaterial({ color:0x0e0e10, roughness:0.45 }));
+  disc.rotation.x = -Math.PI/2; disc.position.y = 0.001; disc.receiveShadow = true; scene.add(disc);
 
-  // ---------- Cursor glow generation (canvas) and visuals ----------
-  function generateGlowTexture(size = 512, color = '#fff3d9') {
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d');
-    const cx = size/2, cy = size/2;
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
-    g.addColorStop(0.0, color);
-    g.addColorStop(0.25, color);
-    g.addColorStop(0.6, 'rgba(255,243,217,0.45)');
-    g.addColorStop(1.0, 'rgba(255,243,217,0.0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,size,size);
-    const tx = new THREE.CanvasTexture(c);
-    tx.minFilter = THREE.LinearFilter;
-    tx.magFilter = THREE.LinearFilter;
-    tx.needsUpdate = true;
-    return tx;
-  }
-  const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 28, 2.2);
-  cursorLight.castShadow = false;
-  scene.add(cursorLight);
-  const cursorBall = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfff3d9 }));
-  cursorBall.frustumCulled = false;
-  scene.add(cursorBall);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: generateGlowTexture(512, '#fff3d9'),
-    blending: THREE.AdditiveBlending,
-    transparent: true,
-    opacity: 0.65,
-    depthWrite: false
-  }));
-  glow.scale.setScalar(0.8);
-  scene.add(glow);
+  const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000), new THREE.MeshBasicMaterial({ visible: false }));
+  interactPlane.rotation.x = -Math.PI/2; interactPlane.position.y = 0; scene.add(interactPlane);
 
-  // ---------- Pulse pooling (minimize allocations) ----------
-  const pulsePool = []; // recycled points
-  const activePulses = [];
-  function createPulse(count = 80) {
-    const geom = new THREE.BufferGeometry();
-    const pos = new Float32Array(count*3);
-    const vel = new Float32Array(count*3);
-    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geom.setAttribute('vel', new THREE.BufferAttribute(vel, 3));
-    const mat = new THREE.PointsMaterial({ size: 0.05, transparent: true, opacity: 1, depthWrite: false, vertexColors: false });
-    const pts = new THREE.Points(geom, mat);
-    pts.userData = { life: 0, count };
-    return pts;
+  // Textures for particle themes
+  function canvasTex(type='bokeh', size=256, color='#fff'){
+    const c = document.createElement('canvas'); c.width=c.height=size; const ctx=c.getContext('2d');
+    ctx.clearRect(0,0,size,size); const cx=size/2, cy=size/2;
+    if(type==='bokeh'){ const g = ctx.createRadialGradient(cx,cy,0,cx,cy,size/2); g.addColorStop(0,color); g.addColorStop(0.35, color); g.addColorStop(0.8, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,size,size); }
+    if(type==='petal'){ ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(cx,cy,size*0.46,size*0.34,0,0,Math.PI*2); ctx.fill(); }
+    if(type==='pixel'){ ctx.fillStyle=color; const s=size*0.36; ctx.fillRect(cx-s/2,cy-s/2,s,s); }
+    if(type==='grid'){ ctx.fillStyle=color; ctx.fillRect(0,0,size,size); ctx.strokeStyle='rgba(255,255,255,0.03)'; ctx.lineWidth=1; for(let x=0;x<size;x+=12){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,size); ctx.stroke(); } for(let y=0;y<size;y+=12){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(size,y); ctx.stroke(); } }
+    const tx = new THREE.CanvasTexture(c); tx.minFilter = THREE.LinearFilter; tx.magFilter = THREE.LinearFilter; tx.needsUpdate = true; return tx;
   }
-  function getPulse(count = 80) {
-    if (pulsePool.length) return pulsePool.pop();
-    return createPulse(count);
+  const texBokeh = canvasTex('bokeh',256,'#ffffff');
+  const texPetal = canvasTex('petal',256,'#ffdfe8');
+  const texPixel = canvasTex('pixel',128,'#ffdfe8');
+  const texGrid = canvasTex('grid',256,'#120005');
+
+  // Glow sprite + cursor light
+  function generateGlow(size=512,color='#fff3d9'){ const c=document.createElement('canvas'); c.width=c.height=size; const ctx=c.getContext('2d'); const g=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2); g.addColorStop(0,color); g.addColorStop(0.25,color); g.addColorStop(0.6,'rgba(255,243,217,0.45)'); g.addColorStop(1,'rgba(255,243,217,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,size,size); const tx=new THREE.CanvasTexture(c); tx.minFilter=THREE.LinearFilter; tx.magFilter=THREE.LinearFilter; tx.needsUpdate=true; return tx; }
+  const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 28, 2.2); cursorLight.castShadow = false; scene.add(cursorLight);
+  const cursorBall = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshBasicMaterial({ color:0xfff3d9 })); cursorBall.frustumCulled=false; scene.add(cursorBall);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: generateGlow(512,'#fff3d9'), blending: THREE.AdditiveBlending, opacity:0.65, transparent:true, depthWrite:false }));
+  glow.scale.setScalar(0.8); scene.add(glow);
+
+  // Pulse pooling
+  const pulsePool = []; const activePulses = [];
+  function createPulse(count=80){
+    const geom = new THREE.BufferGeometry(); const pos = new Float32Array(count*3); const vel = new Float32Array(count*3);
+    geom.setAttribute('position', new THREE.BufferAttribute(pos,3)); geom.setAttribute('vel', new THREE.BufferAttribute(vel,3));
+    const mat = new THREE.PointsMaterial({ size:0.05, color:0xfff0d8, transparent:true, opacity:1, depthWrite:false });
+    const pts = new THREE.Points(geom, mat); pts.userData = { life: 0, count }; return pts;
   }
-  function recyclePulse(pts) {
-    pts.visible = false;
-    pts.userData.life = 0;
-    pulsePool.push(pts);
-  }
-  function spawnPulse(pos3, color = 0xfff0d8, count = 80) {
-    const pts = getPulse(count);
-    const posAttr = pts.geometry.attributes.position;
-    const velAttr = pts.geometry.attributes.vel;
-    for (let i = 0; i < pts.userData.count; i++) {
-      const phi = Math.acos(2*Math.random()-1);
-      const theta = Math.random()*Math.PI*2;
-      const r = 0.02 + Math.random()*0.08;
+  function getPulse(count=80){ if(pulsePool.length) return pulsePool.pop(); return createPulse(count); }
+  function recyclePulse(p){ p.visible=false; p.userData.life=0; pulsePool.push(p); }
+  function spawnPulse(pos3, color=0xfff0d8, count=80){
+    const pts = getPulse(count); const posAttr = pts.geometry.attributes.position; const velAttr = pts.geometry.attributes.vel;
+    for(let i=0;i<pts.userData.count;i++){ const phi=Math.acos(2*Math.random()-1), theta=Math.random()*Math.PI*2, r=0.02+Math.random()*0.08;
       posAttr.array[i*3] = pos3.x + r*Math.sin(phi)*Math.cos(theta);
       posAttr.array[i*3+1] = pos3.y + r*Math.cos(phi);
       posAttr.array[i*3+2] = pos3.z + r*Math.sin(phi)*Math.sin(theta);
-      velAttr.array[i*3] = (Math.random()-0.5)*0.9;
-      velAttr.array[i*3+1] = Math.random()*1.2 + 0.2;
-      velAttr.array[i*3+2] = (Math.random()-0.5)*0.9;
+      velAttr.array[i*3] = (Math.random()-0.5)*0.9; velAttr.array[i*3+1] = Math.random()*1.2 + 0.2; velAttr.array[i*3+2] = (Math.random()-0.5)*0.9;
     }
-    posAttr.needsUpdate = true;
-    velAttr.needsUpdate = true;
-    pts.material.color.setHex(color);
-    pts.userData.life = 1.0;
-    pts.visible = true;
-    if (!pts.parent) scene.add(pts);
-    activePulses.push(pts);
+    posAttr.needsUpdate=true; velAttr.needsUpdate=true; pts.material.color.setHex(color); pts.userData.life=1.0; pts.visible=true; if(!pts.parent) scene.add(pts); activePulses.push(pts);
   }
 
-  // ---------- Per-scene instanced particle system factory ----------
-  // Creates an InstancedMesh with per-instance attrs encoded in an InstancedBufferAttribute
-  function createInstancedParticles(maxInstances = 2000, texture=null) {
-    // quad for point-sprite instancing
-    const geom = new THREE.PlaneGeometry(1,1);
+  // Instanced particle rig with vUv usage and inst.instanceCount on geometry
+  function createInstancedRig(maxInstances = 1200, texture = texBokeh){
+    const base = new THREE.PlaneGeometry(1,1);
     const inst = new THREE.InstancedBufferGeometry();
-    inst.index = geom.index;
-    inst.attributes.position = geom.attributes.position;
-    inst.attributes.uv = geom.attributes.uv;
+    inst.index = base.index;
+    inst.attributes.position = base.attributes.position;
+    inst.attributes.uv = base.attributes.uv;
 
-    const offsets = new Float32Array(maxInstances * 3);
-    const sizes = new Float32Array(maxInstances);
-    const hues = new Float32Array(maxInstances);
-    const phases = new Float32Array(maxInstances);
+    const offsets = new Float32Array(maxInstances*3);
+    const sizeAttr = new Float32Array(maxInstances);
+    const hue = new Float32Array(maxInstances);
+    const phase = new Float32Array(maxInstances);
     const drag = new Float32Array(maxInstances);
-
-    for (let i=0;i<maxInstances;i++){
-      offsets[i*3] = (Math.random()-0.5)*20;
-      offsets[i*3+1] = (Math.random())*10;
-      offsets[i*3+2] = (Math.random()-0.5)*20;
-      sizes[i] = Math.random() * 0.6 + 0.1;
-      hues[i] = Math.random();
-      phases[i] = Math.random() * Math.PI * 2;
-      drag[i] = Math.random() * 0.12 + 0.02;
+    for(let i=0;i<maxInstances;i++){
+      offsets[i*3] = (Math.random()-0.5)*18; offsets[i*3+1] = Math.random()*10; offsets[i*3+2] = (Math.random()-0.5)*18;
+      sizeAttr[i] = Math.random()*0.82 + 0.08;
+      hue[i] = Math.random();
+      phase[i] = Math.random()*Math.PI*2;
+      drag[i] = Math.random()*0.12 + 0.02;
     }
 
     inst.setAttribute('offset', new THREE.InstancedBufferAttribute(offsets, 3));
-    inst.setAttribute('sizeAttr', new THREE.InstancedBufferAttribute(sizes, 1));
-    inst.setAttribute('hue', new THREE.InstancedBufferAttribute(hues, 1));
-    inst.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
+    inst.setAttribute('sizeAttr', new THREE.InstancedBufferAttribute(sizeAttr, 1));
+    inst.setAttribute('hue', new THREE.InstancedBufferAttribute(hue, 1));
+    inst.setAttribute('phase', new THREE.InstancedBufferAttribute(phase, 1));
     inst.setAttribute('drag', new THREE.InstancedBufferAttribute(drag, 1));
 
-    // simple shader material for instanced sprites, supports color grading via uniform
-    const material = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+    // set the instanced draw count on geometry (per your instruction)
+    inst.instanceCount = maxInstances;
+
+    const mat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        map: { value: texture },
+        uFlow: { value: 0.0 },
+        uStage: { value: 0 },
         uColorGrade: { value: new THREE.Vector3(1,1,1) },
-        uOpacity: { value: 0.7 }
+        uOpacity: { value: 0.6 },
+        uPerf: { value: 1.0 },
+        map: { value: texture }
       },
       vertexShader: `
         attribute vec3 offset;
         attribute float sizeAttr;
-        attribute float hue;
         attribute float phase;
         attribute float drag;
-        uniform float uTime;
-        varying float vHue;
+        attribute vec2 uv;
+        varying vec2 vUv;
         varying float vPhase;
+        uniform float uTime;
+        uniform float uFlow;
+        uniform float uStage;
+        uniform float uPerf;
         void main(){
-          float t = uTime * (0.2 + drag);
-          vec3 pos = offset;
-          // small procedural wobble per-instance
-          pos.x += sin(t + phase) * 0.3;
-          pos.y += sin((t*0.7) + phase*0.5) * 0.2;
-          vec4 mvPosition = modelMatrix * vec4(pos, 1.0);
-          vec4 worldPos = mvPosition;
-          // billboard quad
-          vec4 mv = viewMatrix * worldPos;
-          vec3 scale = vec3(sizeAttr);
-          vec4 finalPos = projectionMatrix * (mv + vec4(position.xy * scale, 0.0, 0.0));
-          gl_Position = finalPos;
-          vHue = hue;
+          vUv = uv;
           vPhase = phase;
+          float t = uTime * (0.2 + drag);
+          vec3 p = offset;
+          if (uFlow < 0.5) {
+            p.y += t * 0.12 * (1.0 + uStage*0.3);
+            p += vec3(sin(p.y+p.z + uTime*0.12), cos(p.x+p.z+uTime*0.11), sin(p.x+p.y+uTime*0.1)) * (0.45 + uStage*0.6);
+          } else if (uFlow < 1.5) {
+            float line = sin(offset.x*0.12 + offset.z*0.08 + phase);
+            p.x += mix(0.0, sign(line)*0.7, uStage) * 0.6;
+            p.y += t*0.06;
+          } else if (uFlow < 2.5) {
+            p.x += sin(t*1.2 + phase) * (0.6 + uStage*0.9);
+            p.y += t*0.1;
+          } else if (uFlow < 3.5) {
+            float theta = uTime*1.2 + phase*2.0;
+            p.x += cos(theta) * (uStage*0.6);
+            p.z += sin(theta) * (uStage*0.6);
+            p.y += t*0.18;
+          } else {
+            p.x += sin(phase*3.0) * (0.2 + uStage*0.9);
+            p.y += t*0.08;
+            p.z += cos(phase*3.0) * (0.2 + uStage*0.9);
+          }
+          float perf = clamp(uPerf, 0.4, 1.0);
+          float finalSize = sizeAttr * (0.6 + perf*0.8) * (1.0 + uStage*0.25);
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          vec3 right = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
+          vec3 up = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
+          vec3 pos = mv.xyz + (right * position.x + up * position.y) * finalSize;
+          gl_Position = projectionMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
-        varying float vHue;
+        varying vec2 vUv;
         varying float vPhase;
         uniform sampler2D map;
         uniform vec3 uColorGrade;
         uniform float uOpacity;
         void main(){
-          vec4 c = texture2D(map, gl_PointCoord);
-          // simple hue shift by multiplying color by graded vector
-          vec3 color = c.rgb * mix(vec3(1.0), uColorGrade, 0.6);
-          gl_FragColor = vec4(color, c.a * uOpacity);
+          vec4 c = texture2D(map, vUv);
+          vec3 col = c.rgb * uColorGrade;
+          gl_FragColor = vec4(col, c.a * uOpacity);
+          if (gl_FragColor.a < 0.01) discard;
         }
-      `
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
     });
 
-    const mesh = new THREE.Mesh(inst, material);
+    const mesh = new THREE.Mesh(inst, mat);
     mesh.frustumCulled = false;
     return mesh;
   }
 
-  // ---------- Scene class with cached meshes, particles, chapters and rails ----------
-  class PorcelainScene {
-    constructor(opts = {}) {
-      this.id = opts.id || 0;
-      this.name = opts.name || 'Untitled';
-      this.palette = opts.palette || { bg:0x000000, key:0xffffff, grade: new THREE.Vector3(1,1,1) };
-      this.make = opts.make;
+  // Micro bump map (bumpMap used, not normalMap)
+  function microBump(){
+    const c = document.createElement('canvas'); c.width=c.height=512; const ctx = c.getContext('2d');
+    for(let i=0;i<5000;i++){ const x=Math.random()*512, y=Math.random()*512, s=Math.random()*1.2; ctx.fillStyle=`rgba(200,200,200,${0.02 + Math.random()*0.02})`; ctx.fillRect(x,y,s,s); }
+    const tx = new THREE.CanvasTexture(c); tx.wrapS=tx.wrapT=THREE.RepeatWrapping; tx.repeat.set(4,4); tx.needsUpdate=true; return tx;
+  }
+  const microBumpMap = microBump();
+
+  function enhanceMaterial(mat){
+    if(!mat) return;
+    mat.bumpMap = microBumpMap;
+    mat.bumpScale = 0.02;
+    mat.clearcoat = Math.max(0.8, mat.clearcoat || 1.0);
+    mat.clearcoatRoughness = 0.06;
+    mat.needsUpdate = true;
+  }
+
+  // SceneNode class with per-scene texture passed
+  class SceneNode {
+    constructor(opts){
+      this.id = opts.id; this.name = opts.name; this.palette = opts.palette; this.make = opts.make;
+      this.rail = opts.rail || []; this.chapters = opts.chapters || 4;
+      this.texture = opts.texture || texBokeh;
       this.group = new THREE.Group();
-      this.porcelain = null;
-      this.meshCache = []; // cache porcelain meshes for raycasting
-      this.instancedParticles = null;
-      this.particleMap = null;
+      this.meshes = [];
+      this.particleRig = null;
+      this.groundTheme = opts.ground || { color: 0x0e0e10, roughness: 0.45 };
       this.motionEnabled = true;
-      this.chapters = opts.chapters || 5; // number of scroll chapters for scene
-      this.rail = opts.rail || []; // camera waypoints for snapping per chapter
-      this.setup();
+      this.create();
     }
+    create(){
+      this.hemi = new THREE.HemisphereLight(0xddddff,0x020204,0.42); this.group.add(this.hemi);
+      this.key = new THREE.DirectionalLight(this.palette.key, 1.8); this.key.castShadow=true; this.key.shadow.mapSize.set(1024,1024); this.key.shadow.bias=-0.0005; this.key.position.set(6,10,6); this.group.add(this.key);
+      this.fill = new THREE.DirectionalLight(0x8fb3ff,0.45); this.fill.castShadow=false; this.fill.position.set(-6,5,-6); this.group.add(this.fill);
+      this.rim = new THREE.DirectionalLight(0xffe6d0,0.55); this.rim.castShadow=false; this.rim.position.set(0,6,-8); this.group.add(this.rim);
 
-    setup(){
-      this.group.clear();
-      this.meshCache.length = 0;
+      const obj = this.make();
+      obj.traverse(c => { if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; enhanceMaterial(c.material); this.meshes.push(c); } });
+      this.porcelain = obj; this.group.add(obj);
 
-      // lights (key only casts shadow)
-      this.hemi = new THREE.HemisphereLight(0xddddff, 0x0a0a0d, 0.45);
-      this.group.add(this.hemi);
-
-      this.key = new THREE.DirectionalLight(this.palette.key || 0xffffff, 1.8);
-      this.key.castShadow = true;
-      this.key.shadow.mapSize.set(1024, 1024); // sane mapSize
-      this.key.shadow.bias = -0.0005;
-      this.key.position.set(6, 10, 6);
-      this.group.add(this.key);
-
-      this.fill = new THREE.DirectionalLight(0x8fb3ff, 0.45);
-      this.fill.castShadow = false;
-      this.fill.position.set(-6, 5, -6);
-      this.group.add(this.fill);
-
-      this.rim = new THREE.DirectionalLight(0xffe6d0, 0.6);
-      this.rim.castShadow = false;
-      this.rim.position.set(0, 6, -8);
-      this.group.add(this.rim);
-
-      // porcelain (procedural by default)
-      const p = this.make();
-      this.porcelain = p;
-      p.traverse((c) => {
-        if (c.isMesh) {
-          c.castShadow = true;
-          c.receiveShadow = true;
-          this.meshCache.push(c);
-          if (!(c.material && c.material.isMeshPhysicalMaterial)) {
-            const base = (c.material && c.material.color) ? c.material.color.clone() : new THREE.Color(0xffffff);
-            const mat = new THREE.MeshPhysicalMaterial({
-              color: base,
-              roughness: 0.06,
-              metalness: 0.0,
-              clearcoat: 1.0,
-              clearcoatRoughness: 0.04,
-              envMap: scene.environment,
-              envMapIntensity: 1.2
-            });
-            if (c.material && c.material.map) mat.map = c.material.map;
-            c.material = mat;
-            c.material.userData = { baseRoughness: mat.roughness, baseEnv: mat.envMapIntensity, baseClearcoat: mat.clearcoat };
-          }
-        }
-      });
-      this.group.add(p);
-
-      // tighten key shadow frustum to porcelain bounds
-      const bounds = new THREE.Box3().setFromObject(this.group);
-      const size = bounds.getSize(new THREE.Vector3());
-      const pad = Math.max(0.5, Math.min(size.length() * 0.25, 2.0));
-      try {
-        this.key.shadow.camera.left = -size.x/2 - pad;
-        this.key.shadow.camera.right = size.x/2 + pad;
-        this.key.shadow.camera.top = size.y/2 + pad;
-        this.key.shadow.camera.bottom = -size.y/2 - pad;
+      const box = new THREE.Box3().setFromObject(this.group); const size = box.getSize(new THREE.Vector3()); const pad = Math.max(0.4, Math.min(size.length()*0.22, 2.0));
+      try{
+        this.key.shadow.camera.left = -size.x/2 - pad; this.key.shadow.camera.right = size.x/2 + pad;
+        this.key.shadow.camera.top = size.y/2 + pad; this.key.shadow.camera.bottom = -size.y/2 - pad;
         this.key.shadow.camera.updateProjectionMatrix && this.key.shadow.camera.updateProjectionMatrix();
-      } catch (e) {}
+      } catch(e){}
 
-      // particle instanced system per scene (deferred: create a texture for sprite)
-      const sprite = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
-      this.instancedParticles = createInstancedParticles(1200, sprite);
-      // per-scene grading uniform
-      this.instancedParticles.material.uniforms.uColorGrade.value = this.palette.grade || new THREE.Vector3(1,1,1);
-      this.instancedParticles.material.uniforms.uOpacity.value = 0.6;
-      this.group.add(this.instancedParticles);
-
-      // center & scale scene group
-      const box = new THREE.Box3().setFromObject(this.group);
-      const center = box.getCenter(new THREE.Vector3());
-      this.group.position.sub(center);
-      const size2 = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size2.x, size2.y, size2.z);
-      const target = 4.6;
-      const s = maxDim > 0 ? (target / maxDim) : 1;
-      this.group.scale.setScalar(s);
-      this.group.updateWorldMatrix(true, true);
-      const box2 = new THREE.Box3().setFromObject(this.group);
-      const minY = box2.min.y;
-      this.group.position.y -= minY;
+      this.particleRig = createInstancedRig(1200, this.texture);
+      this.particleRig.material.uniforms.uColorGrade.value = this.palette.grade;
+      // set geometry.instanceCount initially (safety)
+      if(this.particleRig.geometry) this.particleRig.geometry.instanceCount = 1200;
+      this.group.add(this.particleRig);
     }
+    enter(railIdx=0){
+      gsap.to(scene.background, { r: ((this.palette.bg>>16)&0xff)/255, g: ((this.palette.bg>>8)&0xff)/255, b: (this.palette.bg&0xff)/255, duration: 0.9 });
+      gsap.fromTo(this.key, { intensity: 0.0 }, { intensity: 1.8, duration: 0.9 });
+      GradeVignettePass.material.uniforms.uGrade.value.copy(this.palette.grade || new THREE.Vector3(1,1,1));
+      GradeVignettePass.material.uniforms.uVignette.value = 0.34;
+      this.meshes.forEach(m => { if(m.material){ m.material.envMap = scene.environment; m.material.needsUpdate = true; } });
+      if(this.particleRig && this.particleRig.material && this.particleRig.material.uniforms) this.particleRig.material.uniforms.uOpacity.value = 0.6;
+      gsap.to(disc.material.color, { r: ((this.groundTheme.color>>16)&0xff)/255*0.12, g: ((this.groundTheme.color>>8)&0xff)/255*0.12, b: (this.groundTheme.color&0xff)/255*0.12, duration: 0.9 });
+      gsap.to(disc.material, { roughness: this.groundTheme.roughness, duration: 0.9 });
 
-    enter(railTarget) {
-      gsap.to(scene.background, { r: ((this.palette.bg >> 16) & 0xff) / 255, g: ((this.palette.bg >> 8) & 0xff) / 255, b: (this.palette.bg & 0xff) / 255, duration: 0.9 });
-      gsap.fromTo(this.key, { intensity: 0.0 }, { intensity: 1.8, duration: 0.9, ease: 'power2.out' });
-      gsap.fromTo(this.rim, { intensity: 0.0 }, { intensity: 0.6, duration: 0.9, delay: 0.1 });
-      gsap.fromTo(this.fill, { intensity: 0.0 }, { intensity: 0.45, duration: 0.9, delay: 0.12 });
-      // ensure envMap assignment for porcelain materials
-      if (scene.environment) {
-        this.meshCache.forEach(m => {
-          if (m.material && m.material.isMeshPhysicalMaterial) {
-            m.material.envMap = scene.environment;
-            m.material.needsUpdate = true;
-          }
-        });
-      }
-      // optionally animate particles opacity
-      gsap.fromTo(this.instancedParticles.material.uniforms.uOpacity, { value: 0.0 }, { value: 0.6, duration: 1.2 });
-      // camera rails: if provided, snap to first waypoint for this scene
-      if (railTarget) {
-        gsap.to(camera.position, { x: railTarget.position.x, y: railTarget.position.y, z: railTarget.position.z, duration: 1.2, ease: 'expo.inOut', onUpdate: () => controls.update() });
-        gsap.to(controls.target, { x: railTarget.target.x, y: railTarget.target.y, z: railTarget.target.z, duration: 1.2, ease: 'expo.inOut', onUpdate: () => controls.update() });
+      if(this.rail && this.rail[0]) {
+        gsap.to(camera.position, { x: this.rail[0].pos.x, y: this.rail[0].pos.y, z: this.rail[0].pos.z, duration: 1.0, ease: 'expo.inOut', onUpdate: ()=>controls.update() });
+        gsap.to(controls.target, { x: this.rail[0].target.x, y: this.rail[0].target.y, z: this.rail[0].target.z, duration: 1.0, ease: 'expo.inOut', onUpdate: ()=>controls.update() });
       }
     }
-
-    exit() {
-      gsap.to(this.key, { intensity: 0.0, duration: 0.9, ease: 'power2.in' });
-      gsap.to(this.fill, { intensity: 0.0, duration: 0.85 });
-      gsap.to(this.rim, { intensity: 0.0, duration: 0.85 });
-      gsap.to(this.instancedParticles.material.uniforms.uOpacity, { value: 0.0, duration: 0.7 });
+    exit(){
+      gsap.to(this.key, { intensity: 0.0, duration: 0.9 });
+      if(this.particleRig && this.particleRig.material && this.particleRig.material.uniforms) gsap.to(this.particleRig.material.uniforms.uOpacity, { value: 0.0, duration: 0.9 });
     }
-
-    update(dt, elapsed, cursorWorld, cursorIntensity) {
-      // instanced particle time uniform
-      if (this.instancedParticles && this.instancedParticles.material) {
-        this.instancedParticles.material.uniforms.uTime.value = elapsed;
+    update(dt, elapsed, cursorHit, chapter){
+      if(this.particleRig && this.particleRig.material && this.particleRig.material.uniforms){
+        this.particleRig.material.uniforms.uTime.value = elapsed;
+        this.particleRig.material.uniforms.uStage.value = chapter;
+        this.particleRig.material.uniforms.uFlow.value = this.id;
       }
-
-      if (this.motionEnabled) {
-        this.porcelain.rotation.y += dt * (0.09 + this.id * 0.02 || 0.09);
-      }
-
-      // material response limited to cached meshes
-      if (cursorWorld && cursorIntensity > 0.02) {
-        for (let m of this.meshCache) {
-          const w = new THREE.Vector3();
-          m.getWorldPosition(w);
-          const d = Math.min(1.0, cursorWorld.distanceTo(w) / 4.5);
-          const effect = 1.0 - d;
-          const origR = m.material.userData?.baseRoughness ?? 0.06;
-          const origEnv = m.material.userData?.baseEnv ?? 1.2;
-          const targetR = THREE.MathUtils.clamp(origR * (0.25 + (1 - effect) * 1.0), 0.02, 1.0);
-          const targetEnv = THREE.MathUtils.lerp(origEnv, origEnv + 2.2 * effect * cursorIntensity, 0.9);
-          m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, targetR, 0.18);
-          m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || origEnv, targetEnv, 0.18);
-          m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || 1.0, Math.min(1.0, (m.material.userData.baseClearcoat || 1.0) + 0.5 * effect), 0.18);
-        }
-      } else {
-        for (let m of this.meshCache) {
-          if (m.material && m.material.userData) {
-            m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, m.material.userData.baseRoughness || 0.06, 0.04);
-            m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || (m.material.userData.baseEnv || 1.2), m.material.userData.baseEnv || 1.2, 0.03);
-            m.material.clearcoat = THREE.MathUtils.lerp(m.material.clearcoat || (m.material.userData.baseClearcoat || 1.0), m.material.userData.baseClearcoat || 1.0, 0.03);
-          }
-        }
-      }
+      if(this.motionEnabled) this.porcelain.rotation.y += dt * (0.06 + (this.id * 0.02));
+      this.meshes.forEach(m => {
+        m.material.envMapIntensity = Math.min(1.8, 1.0 + chapter * 0.28);
+      });
     }
-
-    toggleMotion(flag) {
-      this.motionEnabled = flag;
-    }
+    toggleMotion(flag){ this.motionEnabled = flag; }
   }
 
-  // ---------- Minimal procedural porcelain makers ----------
-  function makeVesselA() {
-    const pts = [];
-    for (let i = 0; i < 20; i++) {
-      const t = i / 19;
-      pts.push(new THREE.Vector2(0.6 + Math.sin(t*Math.PI)*0.8*(0.5+0.5*t), -1 + t*2.2));
-    }
-    const geo = new THREE.LatheGeometry(pts, 128);
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0xf7f8fb, roughness: 0.06, clearcoat: 1.0, envMap: scene.environment });
-    const m = new THREE.Mesh(geo, mat);
-    m.castShadow = m.receiveShadow = true;
-    return m;
-  }
-  function makePlateB() {
-    const ring = new THREE.RingGeometry(0.5, 2.0, 128);
-    const bowl = new THREE.SphereGeometry(2.2, 128, 128, 0, Math.PI*2, 0, Math.PI/2);
-    bowl.scale(1, 0.38, 1);
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0xeaf6ff, roughness: 0.03, clearcoat: 1.0, envMap: scene.environment });
-    const g = new THREE.Group();
-    const rim = new THREE.Mesh(ring, mat.clone());
-    rim.rotation.x = -Math.PI/2; rim.position.y = 0.01;
-    const center = new THREE.Mesh(bowl, mat.clone()); center.position.y = 0.02;
-    g.add(center, rim);
-    return g;
-  }
-  function makeMiniSculptC() {
-    const geo = new THREE.TorusKnotGeometry(0.9, 0.25, 256, 32, 2, 3);
-    geo.rotateX(Math.PI*0.1);
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0xffefef, roughness: 0.08, clearcoat: 1.0, envMap: scene.environment });
-    const m = new THREE.Mesh(geo, mat);
-    m.castShadow = m.receiveShadow = true;
-    return m;
-  }
-  function makeTallCylinderD() {
-    const geo = new THREE.CylinderGeometry(0.8, 0.8, 3.6, 64, 1, true);
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0xfffffb, roughness: 0.06, clearcoat: 1.0, envMap: scene.environment });
-    const m = new THREE.Mesh(geo, mat);
-    m.castShadow = m.receiveShadow = true;
-    return m;
-  }
-  function makeBowlE() {
-    const geo = new THREE.SphereGeometry(1.8, 128, 128, 0, Math.PI*2, 0, Math.PI/1.7);
-    geo.scale(1, 0.7, 1);
-    const mat = new THREE.MeshPhysicalMaterial({ color: 0xe8f2ff, roughness: 0.02, clearcoat: 0.9, envMap: scene.environment });
-    const m = new THREE.Mesh(geo, mat);
-    m.castShadow = m.receiveShadow = true;
-    return m;
-  }
-
-  // ---------- Build five scenes with distinct palettes and simple rails ----------
-  const scenes = [
-    new PorcelainScene({ id:0, name:'Dawn Vessel', palette:{ bg:0x05050A, key:0xfff8e8, grade: new THREE.Vector3(1.05, 0.95, 0.9) }, make: makeVesselA, rail: { position: new THREE.Vector3(6,3.5,6), target: new THREE.Vector3(0,1.1,0) } }),
-    new PorcelainScene({ id:1, name:'Calm Mirror', palette:{ bg:0x071022, key:0xdfefff, grade: new THREE.Vector3(0.95, 1.02, 1.05) }, make: makePlateB, rail: { position: new THREE.Vector3(5.5,2.8,5.8), target: new THREE.Vector3(0,0.85,0) } }),
-    new PorcelainScene({ id:2, name:'Whim', palette:{ bg:0x10040a, key:0xffefe9, grade: new THREE.Vector3(1.06, 0.96, 1.05) }, make: makeMiniSculptC, rail: { position: new THREE.Vector3(7,3.4,7), target: new THREE.Vector3(0,0.8,0) } }),
-    new PorcelainScene({ id:3, name:'Echo Column', palette:{ bg:0x071011, key:0xfffff6, grade: new THREE.Vector3(1.0, 0.98, 1.05) }, make: makeTallCylinderD, rail: { position: new THREE.Vector3(6.2,3.8,6.2), target: new THREE.Vector3(0,1.4,0) } }),
-    new PorcelainScene({ id:4, name:'Night Bloom', palette:{ bg:0x040618, key:0xe6f0ff, grade: new THREE.Vector3(0.92, 0.98, 1.08) }, make: makeBowlE, rail: { position: new THREE.Vector3(7.5,3.6,7.8), target: new THREE.Vector3(0,0.9,0) } })
+  // Build 5 scenes (textures per scene)
+  function railPoints(base, target){ const rails=[]; for(let i=0;i<4;i++){ const j=(i-1.5)*0.54; rails.push({ pos: base.clone().add(new THREE.Vector3(j,i*0.08,-j)), target: target.clone().add(new THREE.Vector3(0,i*0.035,0)) }); } return rails; }
+  const sceneDefs = [
+    { id:0, name:'Dawn Vessel', palette:{ bg:0x12070a, key:0xffe6c8, grade:new THREE.Vector3(1.08,0.96,0.92) }, make: makeVessel, rail: railPoints(new THREE.Vector3(6,3.5,6), new THREE.Vector3(0,1.1,0)), ground:{color:0x2b0702, roughness:0.35}, texture: texBokeh },
+    { id:1, name:'Calm Mirror', palette:{ bg:0x041225, key:0xbfe8ff, grade:new THREE.Vector3(0.92,1.02,1.06) }, make: makePlate, rail: railPoints(new THREE.Vector3(5.5,2.8,5.8), new THREE.Vector3(0,0.85,0)), ground:{color:0x022033, roughness:0.32}, texture: texBokeh },
+    { id:2, name:'Whim', palette:{ bg:0x1a0408, key:0xffdfe6, grade:new THREE.Vector3(1.06,0.92,0.96) }, make: makeWhim, rail: railPoints(new THREE.Vector3(7,3.4,7), new THREE.Vector3(0,0.8,0)), ground:{color:0x2a0507, roughness:0.4}, texture: texPixel },
+    { id:3, name:'Echo Column', palette:{ bg:0x052816, key:0xe6fff2, grade:new THREE.Vector3(0.95,1.06,0.98) }, make: makeColumn, rail: railPoints(new THREE.Vector3(6.2,3.8,6.2), new THREE.Vector3(0,1.4,0)), ground:{color:0x06301b, roughness:0.48}, texture: texBokeh },
+    { id:4, name:'Night Bloom', palette:{ bg:0x090326, key:0xdfe6ff, grade:new THREE.Vector3(0.94,0.98,1.08) }, make: makeBowl, rail: railPoints(new THREE.Vector3(7.5,3.6,7.8), new THREE.Vector3(0,0.9,0)), ground:{color:0x180226, roughness:0.5}, texture: texPetal }
   ];
 
-  let currentIndex = 0;
-  scene.add(scenes[0].group);
-  scenes[0].enter(scenes[0].rail);
+  // Procedural porcelain makers
+  function makeVessel(){ const pts=[]; for(let i=0;i<20;i++){ const t=i/19; pts.push(new THREE.Vector2(0.6+Math.sin(t*Math.PI)*0.8*(0.5+0.5*t), -1+t*2.2)); } const geo=new THREE.LatheGeometry(pts,128); const mat=new THREE.MeshPhysicalMaterial({ color:0xf7f8fb, roughness:0.06, clearcoat:1.0, envMap:scene.environment }); const m=new THREE.Mesh(geo,mat); m.castShadow=m.receiveShadow=true; return m; }
+  function makePlate(){ const ring=new THREE.RingGeometry(0.5,2.0,128); const bowl=new THREE.SphereGeometry(2.2,128,128,0,Math.PI*2,0,Math.PI/2); bowl.scale(1,0.38,1); const g=new THREE.Group(); const mat=new THREE.MeshPhysicalMaterial({ color:0xeaf6ff, roughness:0.03, clearcoat:1.0, envMap:scene.environment }); const center=new THREE.Mesh(bowl,mat.clone()); center.position.y=0.02; center.castShadow=true; const rim=new THREE.Mesh(ring,mat.clone()); rim.rotation.x=-Math.PI/2; rim.position.y=0.01; rim.receiveShadow=true; g.add(center,rim); return g; }
+  function makeWhim(){ const geo=new THREE.TorusKnotGeometry(0.9,0.25,256,32,2,3); geo.rotateX(Math.PI*0.1); const m=new THREE.Mesh(geo,new THREE.MeshPhysicalMaterial({ color:0xffefef, roughness:0.08, clearcoat:1.0, envMap:scene.environment })); m.castShadow=m.receiveShadow=true; return m; }
+  function makeColumn(){ const geo=new THREE.CylinderGeometry(0.8,0.8,3.6,64,1,true); const m=new THREE.Mesh(geo,new THREE.MeshPhysicalMaterial({ color:0xfffffb, roughness:0.06, clearcoat:1.0, envMap:scene.environment })); m.castShadow=m.receiveShadow=true; return m; }
+  function makeBowl(){ const geo=new THREE.SphereGeometry(1.8,128,128,0,Math.PI*2,0,Math.PI/1.7); geo.scale(1,0.7,1); const m=new THREE.Mesh(geo,new THREE.MeshPhysicalMaterial({ color:0xe8f2ff, roughness:0.02, clearcoat:0.9, envMap:scene.environment })); m.castShadow=m.receiveShadow=true; return m; }
 
-  // ---------- Scene Label U.I. and accessibility ----------
-  const sceneLabel = document.getElementById('sceneLabel');
-  function updateSceneLabel(i) {
-    sceneLabel.textContent = `Scene ${i+1} / 5 — ${scenes[i].name}`;
-  }
-  updateSceneLabel(0);
+  // create nodes
+  const nodes = sceneDefs.map(def => new SceneNode({ id: def.id, name: def.name, palette: def.palette, make: def.make, rail: def.rail, chapters: 4, ground: def.ground, texture: def.texture }));
 
-  // ---------- Crossfade transition with GSAP (set transparent once, tween opacity only) ----------
-  let transitioning = false;
-  function prepareGroupForFade(group) {
-    group.traverse((c) => {
-      if (c.isMesh && c.material && !c.material.__preparedTransparent) {
-        c.material.__preparedTransparent = true;
-        c.material.__origTransparent = c.material.transparent;
-        c.material.__origOpacity = (c.material.opacity !== undefined) ? c.material.opacity : 1.0;
-        c.material.transparent = true;
-      }
-    });
-  }
-  function fadeGroup(group, targetOpacity, duration = 0.9) {
-    group.traverse((c) => {
-      if (c.isMesh && c.material && ('__preparedTransparent' in c.material)) {
-        gsap.to(c.material, { opacity: targetOpacity, duration, ease: 'power2.inOut' });
-      }
-    });
-  }
-  function restoreGroup(group) {
-    group.traverse((c) => {
-      if (c.isMesh && c.material && c.material.__preparedTransparent) {
-        gsap.to(c.material, { opacity: c.material.__origOpacity || 1.0, duration: 0.02, onComplete: () => {
-          c.material.transparent = c.material.__origTransparent;
-          delete c.material.__origTransparent;
-          delete c.material.__origOpacity;
-          delete c.material.__preparedTransparent;
-        }});
-      }
-    });
+  let sceneIndex = 0, chapterIndex = 0;
+  scene.add(nodes[0].group);
+  nodes[0].enter(0);
+  updateSceneLabel(sceneIndex);
+
+  // Prefetch hook
+  function prefetchNextScene(current){
+    const next = (current + 1) % nodes.length;
+    console.log('prefetch next scene assets for', next);
+    // integration point: lazy-load GLTF/LUT/flow textures for next scene here
   }
 
-  // Freeze ground/disc shadows during transitions by lowering their receiveShadow flag gently
-  function freezeGroundShadows(flag) {
-    // simple toggle: reduce opacity to visually hold shadow; real contact-shadow would be better
-    gsap.to(disc.material, { opacity: flag ? 0.6 : 1.0, duration: 0.6 });
-  }
-
-  function gotoScene(index) {
-    if (transitioning || index === currentIndex || index < 0 || index >= scenes.length) return;
-    transitioning = true;
-    const from = scenes[currentIndex];
-    const to = scenes[index];
-
-    // add to scene
-    if (!to.group.parent) scene.add(to.group);
-
-    // prepare fade
-    prepareGroupForFade(from.group);
-    prepareGroupForFade(to.group);
-    // set to group opacity 0 immediately
-    to.group.traverse((c) => { if (c.isMesh && c.material) c.material.opacity = 0.0; });
-
-    // controls disabled
-    controls.enabled = false;
-    freezeGroundShadows(true);
-
-    const tl = gsap.timeline({
-      onComplete: () => {
-        scene.remove(from.group);
-        restoreGroup(from.group);
-        restoreGroup(to.group);
-        currentIndex = index;
-        updateSceneLabel(index);
-        transitioning = false;
-        controls.enabled = true;
-        freezeGroundShadows(false);
-      }
-    });
-
-    // camera + target tween: call controls.update() during tweens
-    tl.to(camera.position, { x: scenes[index].rail.position.x, y: scenes[index].rail.position.y, z: scenes[index].rail.position.z, duration: 1.1, ease: 'expo.inOut', onUpdate: () => controls.update() }, 0);
-    tl.to(controls.target, { x: scenes[index].rail.target.x, y: scenes[index].rail.target.y, z: scenes[index].rail.target.z, duration: 1.1, ease: 'expo.inOut', onUpdate: () => controls.update() }, 0);
-
-    // crossfade
-    tl.add(() => from.exit(), 0.02);
-    tl.add(() => to.enter(scenes[index].rail), 0.02);
-    tl.add(() => fadeGroup(from.group, 0.0, 0.9), 0.04);
-    tl.add(() => fadeGroup(to.group, 1.0, 1.0), 0.06);
-  }
-
-  // ---------- Input handling: scope to canvas, prevent page scroll for arrows/space ----------
-  function isOverUI(event) {
-    const el = document.elementFromPoint(event.clientX, event.clientY);
-    return el && el.closest && el.closest('.panel');
-  }
-
-  // Canvas-scoped pointer & wheel
-  const rect = () => renderer.domElement.getBoundingClientRect();
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2(-10, -10);
-  let pointerActive = false;
-  let lastInteractionTime = performance.now();
-  const idleFade = 900; // ms
-
-  function onCanvasPointerMove(e) {
-    if (isOverUI(e)) return;
-    const r = rect();
+  // Input handling (scoped to canvas)
+  function isOverUI(ev){ const el = document.elementFromPoint(ev.clientX, ev.clientY); return el && el.closest && el.closest('.panel'); }
+  renderer.domElement.addEventListener('mousemove', (e) => {
+    if(isOverUI(e)) return;
+    const r = renderer.domElement.getBoundingClientRect();
     mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
     mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
-    pointerActive = true;
-    lastInteractionTime = performance.now();
-  }
-  function onCanvasPointerDown(e) {
-    if (isOverUI(e)) return;
-    onCanvasPointerMove(e);
-    const pos = computeCursorWorld();
-    spawnPulse(pos, 0xfff0d8, 80);
-  }
-  renderer.domElement.addEventListener('mousemove', onCanvasPointerMove, { passive: true });
-  renderer.domElement.addEventListener('pointerdown', onCanvasPointerDown, { passive: true });
-  renderer.domElement.addEventListener('pointerup', () => { pointerActive = false; lastInteractionTime = performance.now(); }, { passive: true });
+    lastInteraction = performance.now();
+  }, { passive: true });
 
-  // wheel for zoom/chapter staging - scope to canvas
   let scrollTarget = camera.position.distanceTo(controls.target);
-  let scrollAccum = 0; // accumulate to chapters
+  let wheelAccum = 0;
   renderer.domElement.addEventListener('wheel', (e) => {
-    if (isOverUI(e)) return;
+    if(isOverUI(e)) return;
     e.preventDefault();
-    const delta = e.deltaY * 0.003;
-    scrollTarget += delta * 6.0;
+    const delta = e.deltaY;
+    scrollTarget += delta * 0.003 * 6.0;
     scrollTarget = THREE.MathUtils.clamp(scrollTarget, controls.minDistance, controls.maxDistance);
-    // stage chapters: accumulate and trigger per-scene chapter shift (coarse)
-    scrollAccum += e.deltaY > 0 ? 1 : -1;
-    handleScrollChapter(scrollAccum);
+    wheelAccum += delta;
+    if(Math.abs(wheelAccum) > 120){
+      const step = wheelAccum > 0 ? 1 : -1; wheelAccum = 0;
+      chapterIndex = THREE.MathUtils.clamp(chapterIndex + step, 0, nodes[sceneIndex].chapters - 1);
+      applySceneState({ sceneIndex, chapterIndex });
+    }
+    lastInteraction = performance.now();
   }, { passive: false });
 
-  // simple touch pinch-to-zoom
-  let touchZoomStart = null;
-  renderer.domElement.addEventListener('touchstart', (e) => {
-    if (e.touches && e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      touchZoomStart = Math.hypot(dx, dy);
-    }
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    if(isOverUI(e)) return;
+    const hit = computeHit();
+    if(hit && hit.object && nodes[sceneIndex].meshes.includes(hit.object)) spawnPulse(hit.point, 0xfff0d8, 80);
+    lastInteraction = performance.now();
   }, { passive: true });
-  renderer.domElement.addEventListener('touchmove', (e) => {
-    if (e.touches && e.touches.length === 2 && touchZoomStart) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const nowD = Math.hypot(dx, dy);
-      const diff = (touchZoomStart - nowD) * 0.0025;
-      scrollTarget += diff * 8.0;
-      scrollTarget = THREE.MathUtils.clamp(scrollTarget, controls.minDistance, controls.maxDistance);
-      touchZoomStart = nowD;
-    }
-  }, { passive: true });
-  renderer.domElement.addEventListener('touchend', () => { touchZoomStart = null; }, { passive: true });
 
-  // prevent page scroll on arrow/space when not focusing an input
   window.addEventListener('keydown', (e) => {
     const active = document.activeElement;
-    const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-    if (!isTyping) {
-      if (e.code === 'ArrowRight') { e.preventDefault(); gotoScene((currentIndex + 1) % scenes.length); }
-      if (e.code === 'ArrowLeft') { e.preventDefault(); gotoScene((currentIndex - 1 + scenes.length) % scenes.length); }
-      if (e.code === 'Space') { e.preventDefault(); toggleMotion(); }
+    const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+    if(!typing){
+      if(e.code === 'ArrowRight'){ e.preventDefault(); gotoScene((sceneIndex + 1) % nodes.length); }
+      if(e.code === 'ArrowLeft'){ e.preventDefault(); gotoScene((sceneIndex - 1 + nodes.length) % nodes.length); }
+      if(e.code === 'Space'){ e.preventDefault(); toggleMotion(); }
     }
   }, { passive: false });
 
-  // ---------- compute cursor world using cached mesh arrays ----------
-  function computeCursorWorld() {
+  document.getElementById('fsBtn').addEventListener('click', async ()=>{
+    if(!document.fullscreenElement){ await container.requestFullscreen().catch(()=>{}); resize(); } else { await document.exitFullscreen().catch(()=>{}); resize(); }
+  });
+
+  // computeHit uses ints and ints2 distinct names and returns first available hit; skip when idle
+  function computeHit(){
+    if(performance.now() - lastInteraction > 900) return null;
     raycaster.setFromCamera(mouse, camera);
-    const cur = scenes[currentIndex];
-    if (cur && cur.meshCache.length) {
-      const ints = raycaster.intersectObjects(cur.meshCache, true);
-      if (ints.length) return ints[0].point.clone();
+    const node = nodes[sceneIndex];
+    if(node && node.meshes.length){
+      const ints = raycaster.intersectObjects(node.meshes, true);
+      if(ints && ints.length) return ints[0];
     }
     const ints2 = raycaster.intersectObject(interactPlane);
-    if (ints2.length) return ints2[0].point.clone();
-    return new THREE.Vector3(mouse.x, mouse.y, 0.5).unproject(camera);
+    if(ints2 && ints2.length) return ints2[0];
+    return null;
   }
 
-  // ---------- Scene chapter handling (scroll stages) ----------
-  function handleScrollChapter(accum) {
-    // coarse example: when user scrolls a certain amount, change particle cadence or camera snap
-    const cur = scenes[currentIndex];
-    if (!cur) return;
-    // clamp accum to [-cur.chapters..cur.chapters]
-    const maxCh = Math.max(1, cur.chapters - 1);
-    const stage = Math.max(0, Math.min(maxCh, Math.floor((accum + 100000) % (cur.chapters))));
-    // map stage to some particle parameter: we use uniform uOpacity as a simple cadence proxy
-    const t = stage / Math.max(1, (cur.chapters - 1));
-    if (cur.instancedParticles && cur.instancedParticles.material && cur.instancedParticles.material.uniforms) {
-      gsap.to(cur.instancedParticles.material.uniforms.uOpacity, { value: 0.2 + 0.8 * t, duration: 0.6 });
+  // scene switching (crossfade)
+  function prepareFade(group){ group.traverse((c)=>{ if(c.isMesh && c.material && !c.material.__prepared){ c.material.__prepared=true; c.material.__origTransparent = c.material.transparent; c.material.__origOpacity = c.material.opacity !== undefined ? c.material.opacity : 1.0; c.material.transparent = true; } }); }
+  function fadeGroup(group, to, dur = 0.9){ group.traverse((c)=>{ if(c.isMesh && c.material && c.material.__prepared) gsap.to(c.material, { opacity: to, duration: dur, ease: 'power2.inOut' }); }); }
+  function restoreFade(group){ group.traverse((c)=>{ if(c.isMesh && c.material && c.material.__prepared){ gsap.to(c.material, { opacity: c.material.__origOpacity || 1.0, duration: 0.02, onComplete: ()=>{ c.material.transparent = c.material.__origTransparent; delete c.material.__origTransparent; delete c.material.__origOpacity; delete c.material.__prepared; } }); } }); }
+
+  let transitioning = false;
+  function gotoScene(index){
+    if(transitioning || index === sceneIndex) return;
+    transitioning = true;
+    const from = nodes[sceneIndex], to = nodes[index];
+    if(!to.group.parent) scene.add(to.group);
+    prepareFade(from.group); prepareFade(to.group);
+    to.group.traverse(c => { if(c.isMesh && c.material) c.material.opacity = 0.0; });
+    controls.enabled = false;
+    gsap.to(disc.material, { opacity: 0.6, duration: 0.6 });
+    const tl = gsap.timeline({ onComplete: ()=>{
+      scene.remove(from.group);
+      restoreFade(from.group);
+      restoreFade(to.group);
+      sceneIndex = index; updateSceneLabel(sceneIndex);
+      transitioning = false; controls.enabled = true;
+      gsap.to(disc.material, { opacity: 1.0, duration: 0.6 });
+    }});
+    const rail = to.rail[0] || { pos: camera.position.clone(), target: controls.target.clone() };
+    tl.to(camera.position, { x: rail.pos.x, y: rail.pos.y, z: rail.pos.z, duration: 1.05, ease: 'expo.inOut', onUpdate: ()=>controls.update() }, 0);
+    tl.to(controls.target, { x: rail.target.x, y: rail.target.y, z: rail.target.z, duration: 1.05, ease: 'expo.inOut', onUpdate: ()=>controls.update() }, 0);
+    tl.add(()=>from.exit(), 0.02);
+    tl.add(()=>to.enter(0), 0.02);
+    tl.add(()=>fadeGroup(from.group, 0.0, 0.9), 0.04);
+    tl.add(()=>fadeGroup(to.group, 1.0, 1.0), 0.06);
+  }
+
+  function updateSceneLabel(i){ document.getElementById('sceneLabel').textContent = `Scene ${i+1} / 5 — ${nodes[i].name}`; }
+
+  function toggleMotion(){ nodes.forEach(n => n.toggleMotion(!n.motionEnabled)); }
+
+  // Performance governor: change geometry.instanceCount when throttling
+  const perf = { samples: [], lastAdjust: performance.now() };
+  function perfTick(dt){
+    perf.samples.push(dt);
+    if(perf.samples.length>60) perf.samples.shift();
+    const avg = perf.samples.reduce((a,b)=>a+b,0) / perf.samples.length;
+    const fps = 1 / avg;
+    const now = performance.now();
+    if(now - perf.lastAdjust > 1000){
+      perf.lastAdjust = now;
+      if(fps < 45){
+        bloomPass.strength = Math.max(0.25, bloomPass.strength * 0.88);
+        bokehPass.enabled = false;
+        nodes.forEach(n => { if(n.particleRig && n.particleRig.geometry) n.particleRig.geometry.instanceCount = Math.floor(1200 * 0.6); });
+      } else {
+        bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 0.55, 0.06);
+        nodes.forEach(n => { if(n.particleRig && n.particleRig.geometry) n.particleRig.geometry.instanceCount = 1200; });
+      }
     }
-    // we could snap camera to per-chapter rails here (not full implementation; placeholder)
   }
 
-  // ---------- Motion toggle pauses porcelain & particles globally ----------
-  let globalMotion = true;
-  function toggleMotion() {
-    globalMotion = !globalMotion;
-    scenes.forEach(s => s.toggleMotion(globalMotion));
-    // also control instanced particle animation by toggling a uniform multiplier (not shown here)
-  }
-
-  // ---------- Resize single function updating composer, camera, renderer, bokeh aspect (STEP 7) ----------
-  function resize() {
+  // Resize: update camera, renderer, composer, bokeh aspect, smaa with DPR, composer.setPixelRatio
+  function resize(){
     const w = WIDTH(), h = HEIGHT();
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    composer.setSize(w, h);
-    // official bokeh pass update
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+    composer.setSize(w,h);
+    composer.setPixelRatio(DPR);
     try {
-      if (bokehPass && bokehPass.materialBokeh && bokehPass.materialBokeh.uniforms && ('aspect' in bokehPass.materialBokeh.uniforms)) {
-        bokehPass.materialBokeh.uniforms.aspect.value = camera.aspect;
-      } else if (bokehPass && bokehPass.uniforms) {
-        bokehPass.uniforms['width'].value = w;
-        bokehPass.uniforms['height'].value = h;
-      }
-      if (smaaPass) {
-        smaaPass.setSize(w, h);
-      }
-    } catch (e) {
-      console.warn('Bokeh aspect update failed (non-fatal):', e);
-    }
+      if(bokehPass && bokehPass.materialBokeh && bokehPass.materialBokeh.uniforms && ('aspect' in bokehPass.materialBokeh.uniforms)) bokehPass.materialBokeh.uniforms.aspect.value = camera.aspect;
+      else if(bokehPass && bokehPass.uniforms){ bokehPass.uniforms['width'].value = w; bokehPass.uniforms['height'].value = h; }
+      if(smaaPass) smaaPass.setSize(Math.floor(w*DPR), Math.floor(h*DPR));
+    } catch(e){}
   }
   window.addEventListener('resize', resize);
 
-  // ---------- Idle cursor fade (done in animate) & audio-reactive toggle placeholder ----------
-  let audioReactive = false;
-  document.getElementById('toggleAudio').addEventListener('change', (e) => {
-    audioReactive = e.target.checked;
-  });
-
-  // ---------- UI toggles ----------
-  document.getElementById('toggleBloom').addEventListener('change', (e) => {
-    bloomPass.enabled = e.target.checked;
-  });
-  document.getElementById('toggleDOF').addEventListener('change', (e) => {
-    bokehPass.enabled = e.target.checked;
-  });
-  document.getElementById('toggleParticles').addEventListener('change', (e) => {
-    scenes.forEach(s => { if (s.instancedParticles) s.instancedParticles.visible = e.target.checked; });
-  });
-
-  // ---------- Render loop ----------
+  // Animation loop (skip raycasts when idle; scale cursor by camFactor; update nodes)
   const clock = new THREE.Clock();
+  let lastInteraction = performance.now();
 
-  // interaction plane for fallback
-  const interactPlane = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshBasicMaterial({ visible: false }));
-  interactPlane.rotation.x = -Math.PI/2;
-  interactPlane.position.y = 0;
-  scene.add(interactPlane);
-
-  function animate() {
+  function animate(){
     const dt = Math.min(0.05, clock.getDelta());
     const elapsed = clock.getElapsedTime();
+    perfTick(dt);
 
-    // smooth camera zoom by moving camera along forward vector and clamping to controls bounds
-    const camDir = new THREE.Vector3();
-    camera.getWorldDirection(camDir);
+    // camera distance lerp (we own zoom)
+    const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
     const desiredDistance = THREE.MathUtils.lerp(camera.position.distanceTo(controls.target), scrollTarget, 0.06);
     const clampedDistance = THREE.MathUtils.clamp(desiredDistance, controls.minDistance, controls.maxDistance);
     const newCamPos = new THREE.Vector3().copy(camDir).multiplyScalar(-clampedDistance).add(controls.target);
     camera.position.lerp(newCamPos, 0.08);
 
-    // cursor world and intensity: only boost when hitting object
-    let cursorWorld = null;
-    let cursorIntensity = 0;
-    if (mouse.x > -9) {
+    // skip raycast if idle
+    let hit = null;
+    if(performance.now() - lastInteraction <= 900){
       raycaster.setFromCamera(mouse, camera);
-      const cur = scenes[currentIndex];
-      if (cur && cur.meshCache.length) {
-        const ints = raycaster.intersectObjects(cur.meshCache, true);
-        if (ints.length) {
-          cursorWorld = ints[0].point.clone();
-          // surface normal alignment for lobe intensity
-          const nd = ints[0].face ? ints[0].face.normal.clone().transformDirection(ints[0].object.matrixWorld) : new THREE.Vector3(0,1,0);
-          const camDirToPoint = new THREE.Vector3().subVectors(camera.position, cursorWorld).normalize();
-          const align = Math.max(0, nd.dot(camDirToPoint));
-          cursorIntensity = THREE.MathUtils.clamp((1.0 - (ints[0].distance / 10.0)) * align, 0.0, 1.0);
-        }
+      const node = nodes[sceneIndex];
+      if(node && node.meshes.length){
+        const ints = raycaster.intersectObjects(node.meshes, true);
+        if(ints && ints.length) hit = ints[0];
       }
-      // fallback: raycast to plane
-      if (!cursorWorld) {
+      if(!hit){
         const ints2 = raycaster.intersectObject(interactPlane);
-        if (ints2.length) cursorWorld = ints2[0].point.clone();
+        if(ints2 && ints2.length) hit = ints2[0];
       }
     }
 
-    // idle fade
-    const idle = (performance.now() - lastInteractionTime) > 900;
-    if (idle) pointerActive = false;
-
-    // cursor light behavior: cap by camera distance and only boost on object hit
-    if (cursorWorld && !idle) {
-      // camera-distance cap
-      const camDist = camera.position.distanceTo(cursorWorld);
-      const camFactor = THREE.MathUtils.clamp(8.0 / Math.max(0.001, camDist), 0.0, 1.0);
-      const intendedRaw = 0.04 + cursorIntensity * 1.6;
-      const intended = THREE.MathUtils.clamp(intendedRaw * camFactor, 0.04, 1.8);
-      // smooth lerp
+    // cursor adaptive light (only on object hits; clamp intensity & scale by cam distance)
+    if(hit && hit.object && nodes[sceneIndex].meshes.includes(hit.object)){
+      const N = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      const V = camera.position.clone().sub(hit.point).normalize();
+      const d = hit.distance;
+      const Iraw = (1 - Math.min(10, d)/10) * Math.max(0, N.dot(V));
+      const I = THREE.MathUtils.clamp(Iraw, 0.04, 1.0); // clamp max to 1.0 to avoid blowout
+      const camFactor = THREE.MathUtils.clamp(8.0 / Math.max(0.001, d), 0.0, 1.0);
+      const intended = I * camFactor;
       cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, intended, 0.12);
-      cursorLight.position.lerp(cursorWorld, 0.18);
-      cursorBall.position.lerp(cursorWorld, 0.18);
-      glow.position.lerp(new THREE.Vector3().copy(cursorWorld).add(new THREE.Vector3().subVectors(camera.position, cursorWorld).setLength(0.06)), 0.18);
-      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.65 * (cursorIntensity*0.85 + 0.15), 0.12);
-      const gS = THREE.MathUtils.lerp(glow.scale.x, 0.3 + cursorIntensity*1.8 * camFactor, 0.12);
-      glow.scale.setScalar(gS);
+      cursorLight.position.lerp(hit.point, 0.18);
+      cursorBall.position.lerp(hit.point, 0.18);
+      const targetScale = 0.3 + I * 1.6 * camFactor;
+      glow.scale.setScalar(THREE.MathUtils.lerp(glow.scale.x, targetScale, 0.12));
+      glow.position.lerp(hit.point.clone().add(new THREE.Vector3().subVectors(camera.position, hit.point).setLength(0.06)), 0.18);
+      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.65 * I, 0.12);
     } else {
       cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, 0.0, 0.06);
       glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.0, 0.05);
     }
 
-    // update active pulses & recycle
-    for (let i = activePulses.length - 1; i >= 0; i--) {
+    // pulses update & recycle
+    for(let i=activePulses.length-1;i>=0;i--){
       const p = activePulses[i];
       p.userData.life -= dt * 0.8;
-      const posAttr = p.geometry.attributes.position;
-      const velAttr = p.geometry.attributes.vel;
-      for (let v=0; v<posAttr.count; v++){
-        posAttr.array[v*3] += velAttr.array[v*3] * dt;
-        posAttr.array[v*3+1] += velAttr.array[v*3+1] * dt;
-        posAttr.array[v*3+2] += velAttr.array[v*3+2] * dt;
+      const posAttr = p.geometry.attributes.position, velAttr = p.geometry.attributes.vel;
+      for(let v=0; v<posAttr.count; v++){
+        posAttr.array[v*3] += velAttr.array[v*3]*dt;
+        posAttr.array[v*3+1] += velAttr.array[v*3+1]*dt;
+        posAttr.array[v*3+2] += velAttr.array[v*3+2]*dt;
         velAttr.array[v*3+1] -= dt * 0.9;
       }
-      posAttr.needsUpdate = true;
-      velAttr.needsUpdate = true;
+      posAttr.needsUpdate=true; velAttr.needsUpdate=true;
       p.material.opacity = Math.max(0, p.userData.life);
-      if (p.userData.life <= 0) {
-        const idx = activePulses.indexOf(p);
-        if (idx !== -1) activePulses.splice(idx, 1);
-        if (p.parent) p.parent.remove(p);
-        recyclePulse(p);
-      }
+      if(p.userData.life <= 0){ const idx = activePulses.indexOf(p); if(idx!==-1) activePulses.splice(idx,1); if(p.parent) p.parent.remove(p); recyclePulse(p); }
     }
 
-    // update current scene
-    scenes[currentIndex].update(dt, elapsed, cursorWorld, cursorIntensity);
+    // update active scene node
+    nodes[sceneIndex].update(dt, elapsed, hit ? hit.point.clone() : null, chapterIndex);
 
     controls.update();
     composer.render();
-
     requestAnimationFrame(animate);
   }
   requestAnimationFrame(animate);
 
-  // ---------- initial prefetch strategy: pre-add next scene to DOM but lazy heavy assets ----------
-  // We already created procedural scenes - if you later integrate GLBs, load per-scene GLB on partial scroll or prefetch neighboring scenes here.
+  // Helpers
+  function updateSceneLabel(i){ document.getElementById('sceneLabel').textContent = `Scene ${i+1} / 5 — ${nodes[i].name}`; }
 
-  // ---------- small helpers exposed on window for debugging ----------
-  window.__porcelain = { scenes, gotoScene, toggleMotion, resize };
+  // Expose some methods for debugging
+  window.__porcelain = { nodes, gotoScene, applySceneState, resize };
+
+  // Initial resize
+  resize();
 
   </script>
 </body>
