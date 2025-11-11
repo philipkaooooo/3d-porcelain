@@ -1,77 +1,283 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Porcelain 3D</title>
-  <style>
-    html,body{height:100%;margin:0;background:#101113}
-    canvas{width:100%;height:100%;display:block}
-    .hud{position:fixed;top:10px;left:10px;color:#cfcfcf;font:14px system-ui;opacity:.9}
-  </style>
+  <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Porcelain 3D</title>
+      <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+      <style>
+        html,
+        body {
+          height: 100%;
+          margin: 0;
+          background: #101113;
+        }
+
+        canvas {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+
+        .hud {
+          position: fixed;
+          top: 10px;
+          left: 10px;
+          color: #cfcfcf;
+          font: 14px system-ui;
+          opacity: 0.9;
+          z-index: 5;
+        }
+
+        .viewer-pocket {
+          position: fixed;
+          right: 20px;
+          bottom: 20px;
+          width: min(320px, 30vw);
+          aspect-ratio: 1;
+          border-radius: 18px;
+          overflow: hidden;
+          border: 1px solid #2a2c31;
+          box-shadow: 0 12px 25px rgba(0, 0, 0, 0.35);
+          background: radial-gradient(circle at top, rgba(29, 33, 40, 0.9), rgba(10, 12, 15, 0.9));
+          z-index: 4;
+        }
+
+        .viewer-pocket::after {
+          content: "model-viewer demo";
+          position: absolute;
+          left: 16px;
+          bottom: 16px;
+          font: 500 12px/1.2 "Inter", system-ui, sans-serif;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(222, 229, 255, 0.75);
+          backdrop-filter: blur(2px);
+        }
+
+        model-viewer {
+          width: 100%;
+          height: 100%;
+          --poster-color: rgba(22, 24, 28, 0.85);
+        }
+
+        @media (max-width: 768px) {
+          .viewer-pocket {
+            width: min(260px, 50vw);
+          }
+        }
+      </style>
 </head>
 <body>
-  <div class="hud">drag = orbit • wheel = zoom • dbl-click = focus</div>
-  <canvas id="c"></canvas>
+      <div class="hud">drag = orbit • wheel = zoom • dbl-click = focus</div>
+      <canvas id="c"></canvas>
+      <div class="viewer-pocket">
+        <model-viewer
+          alt="Neil Armstrong's Spacesuit from the Smithsonian Digitization Programs Office and National Air and Space Museum"
+          src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+          ar
+          environment-image="https://modelviewer.dev/shared-assets/environments/moon_1k.hdr"
+          poster="https://modelviewer.dev/shared-assets/models/Astronaut.webp"
+          shadow-intensity="1"
+          camera-controls
+          touch-action="pan-y"
+        >
+        </model-viewer>
+      </div>
 
-  <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
-    import { OrbitControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js";
-    import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
+      <script type="module">
+        import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
+        import { OrbitControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js";
+        import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
+        import { EffectComposer } from "https://unpkg.com/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js";
+        import { RenderPass } from "https://unpkg.com/three@0.165.0/examples/jsm/postprocessing/RenderPass.js";
+        import { UnrealBloomPass } from "https://unpkg.com/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js";
+        import { FilmPass } from "https://unpkg.com/three@0.165.0/examples/jsm/postprocessing/FilmPass.js";
 
-    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(innerWidth, innerHeight);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        const canvas = document.getElementById("c");
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x101113);
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x101113);
 
-    const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 100);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 150);
+        camera.position.set(1.6, 1.1, 1.6);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(2,3,1); scene.add(key);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.065;
+        controls.minDistance = 0.2;
+        controls.maxDistance = 12;
 
-    const grid = new THREE.GridHelper(2, 20, 0x666666, 0x333333); grid.position.y = 0; scene.add(grid);
+        const hemi = new THREE.HemisphereLight(0xd7e0ff, 0x1a1b1f, 0.55);
+        scene.add(hemi);
 
-    // 👇 If you upload your file to /assets/, change path to "/assets/porcelain.glb"
-    const loader = new GLTFLoader();
-    loader.load("porcelain.glb", (g) => {
-      const model = g.scene; scene.add(model);
+        const key = new THREE.DirectionalLight(0xffffff, 1.6);
+        key.position.set(2, 3, 1);
+        key.castShadow = true;
+        key.shadow.mapSize.set(2048, 2048);
+        scene.add(key);
 
-      // auto-frame camera
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3()).length();
-      const center = box.getCenter(new THREE.Vector3());
-      controls.target.copy(center);
-      camera.position.copy(center).add(new THREE.Vector3(1,1,1).multiplyScalar(size*0.35));
-      camera.near = Math.max(0.01, size*0.01); camera.far = size*10; camera.updateProjectionMatrix();
+        const rim = new THREE.DirectionalLight(0x92b7ff, 0.65);
+        rim.position.set(-2.5, 1.8, -1.4);
+        scene.add(rim);
 
-      // gentle autospin
-      let last = performance.now()*0.001, spin = 0.25;
-      (function loop(){
-        const now = performance.now()*0.001, dt = now-last; last = now;
-        scene.rotation.y += spin*dt;
-        controls.update(); renderer.render(scene, camera);
-        requestAnimationFrame(loop);
-      })();
-    });
+        const ground = new THREE.Mesh(
+          new THREE.CylinderGeometry(3.5, 3.5, 0.02, 48),
+          new THREE.MeshStandardMaterial({ color: 0x101216, roughness: 0.85, metalness: 0.05 })
+        );
+        ground.receiveShadow = true;
+        ground.position.y = -0.01;
+        scene.add(ground);
 
-    addEventListener("resize", () => {
-      renderer.setSize(innerWidth, innerHeight);
-      camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-    });
+        const grid = new THREE.GridHelper(4, 40, 0x3a3c3f, 0x222427);
+        grid.position.y = 0;
+        grid.material.opacity = 0.15;
+        grid.material.transparent = true;
+        scene.add(grid);
 
-    // double-click to focus
-    renderer.domElement.addEventListener("dblclick", (e) => {
-      const r = renderer.domElement.getBoundingClientRect();
-      const ndc = new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
-      const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(scene.children, true)[0]; if (hit) controls.target.copy(hit.point);
-    });
-  </script>
+        const modelGroup = new THREE.Group();
+        scene.add(modelGroup);
+
+        const composer = new EffectComposer(renderer);
+        composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        composer.setSize(window.innerWidth, window.innerHeight);
+
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          0.7,
+          0.45,
+          0.85
+        );
+        composer.addPass(bloomPass);
+
+        const filmPass = new FilmPass(0.32, 0.55, 1024, false);
+        composer.addPass(filmPass);
+
+        // 👇 If you upload your file to /assets/, change path to "/assets/porcelain.glb"
+        const loader = new GLTFLoader();
+        const glbUrl = new URL("./porcelain.glb", window.location.href).href;
+
+        const frameBox = new THREE.Box3();
+        const frameVec = new THREE.Vector3();
+
+        loader.load(
+          glbUrl,
+          (gltf) => {
+            const model = gltf.scene;
+
+            model.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material && Array.isArray(child.material)) {
+                  child.material.forEach((mat) => (mat.toneMapped = true));
+                } else if (child.material) {
+                  child.material.toneMapped = true;
+                }
+              }
+            });
+
+          modelGroup.clear();
+          modelGroup.add(model);
+
+          frameBox.setFromObject(model);
+          const center = frameBox.getCenter(frameVec);
+          model.position.sub(center);
+
+          frameBox.setFromObject(model);
+          const floorOffset = frameBox.min.y;
+          model.position.y -= floorOffset;
+
+          frameBox.setFromObject(model);
+          const size = frameBox.getSize(frameVec);
+          const radius = size.length() * 0.5;
+          const fov = THREE.MathUtils.degToRad(camera.fov);
+          const distance = radius / Math.tan(fov * 0.5);
+
+          const framedCenter = frameBox.getCenter(frameVec);
+          controls.target.copy(framedCenter);
+          camera.position.set(distance * 0.9, distance * 0.6 + size.y * 0.15, distance * 0.9);
+          camera.near = Math.max(0.01, radius * 0.02);
+          camera.far = radius * 20;
+          camera.updateProjectionMatrix();
+          },
+          undefined,
+          (error) => {
+            console.error("Failed to load porcelain.glb", error);
+            const hud = document.querySelector(".hud");
+            if (hud) {
+              hud.textContent = "Could not load porcelain.glb – check the file path.";
+              hud.style.color = "#ff8a8a";
+            }
+          }
+        );
+
+        const clock = new THREE.Clock();
+        let spinSpeed = 0.25;
+
+        function animate() {
+          const delta = clock.getDelta();
+          const elapsed = clock.elapsedTime;
+
+          modelGroup.rotation.y += spinSpeed * delta;
+
+          bloomPass.strength = 0.65 + Math.sin(elapsed * 0.45) * 0.18;
+          bloomPass.radius = 0.6 + Math.cos(elapsed * 0.35) * 0.05;
+          filmPass.uniforms.nIntensity.value = 0.35 + Math.sin(elapsed * 0.7) * 0.06;
+          filmPass.uniforms.sIntensity.value = 0.45 + Math.cos(elapsed * 0.4) * 0.08;
+
+          controls.update();
+          composer.render();
+          requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        addEventListener("resize", () => {
+          const width = window.innerWidth;
+          const height = window.innerHeight;
+
+          renderer.setSize(width, height);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+          composer.setSize(width, height);
+          bloomPass.setSize(width, height);
+
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+        });
+
+        // double-click to focus
+        renderer.domElement.addEventListener("dblclick", (e) => {
+          const r = renderer.domElement.getBoundingClientRect();
+          const ndc = new THREE.Vector2(
+            ((e.clientX - r.left) / r.width) * 2 - 1,
+            -((e.clientY - r.top) / r.height) * 2 + 1
+          );
+          const ray = new THREE.Raycaster();
+          ray.setFromCamera(ndc, camera);
+          const hit = ray.intersectObjects(modelGroup.children, true)[0];
+          if (hit) {
+            controls.target.copy(hit.point);
+          }
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.code === "Space") {
+            spinSpeed = spinSpeed > 0 ? 0 : 0.25;
+          }
+        });
+      </script>
 </body>
 </html>
