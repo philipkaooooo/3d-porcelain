@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PP001 - Porcelain Illumination</title>
+    <title>PP001 - Transcendental Porcelain</title>
     <style>
         * {
             margin: 0;
@@ -35,16 +35,6 @@
             outline: none;
         }
 
-        .ui-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 100;
-        }
-
         .loading-screen {
             position: absolute;
             top: 0;
@@ -61,84 +51,46 @@
         }
 
         .loading-bar {
-            width: 300px;
-            height: 2px;
+            width: 400px;
+            height: 3px;
             background: rgba(255,255,255,0.1);
-            margin-top: 20px;
+            margin-top: 30px;
             overflow: hidden;
+            border-radius: 3px;
         }
 
         .loading-progress {
             height: 100%;
-            background: linear-gradient(90deg, #ff6b6b, #ffa86b, #ffd86b, #6bffb8, #6bd4ff, #a86bff);
+            background: linear-gradient(90deg, #ff0080, #8000ff, #0080ff, #00ff80, #ffff00);
             width: 0%;
             transition: width 0.3s ease;
+            border-radius: 3px;
         }
 
-        .hud {
+        .quantum-hud {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.7);
-            padding: 12px 18px;
-            border-radius: 12px;
-            font-size: 12px;
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.15);
-            pointer-events: all;
+            top: 30px;
+            left: 30px;
+            background: rgba(0,0,0,0.9);
+            padding: 20px;
+            border-radius: 15px;
+            font-size: 13px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
+            font-family: 'Courier New', monospace;
         }
 
-        .controls {
+        .energy-readings {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
-            border-radius: 12px;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.9);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
             font-size: 11px;
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.15);
-            line-height: 1.6;
-            pointer-events: all;
-        }
-
-        .material-controls {
-            position: absolute;
-            top: 80px;
-            right: 20px;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
-            border-radius: 12px;
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.15);
-            font-size: 11px;
-            pointer-events: all;
-        }
-
-        .control-group {
-            margin: 8px 0;
-        }
-
-        .control-group label {
-            display: block;
-            margin-bottom: 4px;
-            opacity: 0.8;
-        }
-
-        .control-group input[type="range"] {
-            width: 180px;
-        }
-
-        .stats {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.7);
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-size: 10px;
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.15);
+            font-family: 'Courier New', monospace;
         }
     </style>
 </head>
@@ -146,50 +98,25 @@
     <div id="container"></div>
     
     <div class="loading-screen" id="loadingScreen">
-        <div style="font-size: 24px; margin-bottom: 10px;">PP001 - PORCELAIN ILLUMINATION</div>
-        <div style="font-size: 14px; opacity: 0.7; margin-bottom: 20px;">Initializing realistic rendering...</div>
+        <div style="font-size: 32px; margin-bottom: 15px; background: linear-gradient(45deg, #ff0080, #8000ff, #0080ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">PP001 QUANTUM PORCELAIN</div>
+        <div style="font-size: 16px; opacity: 0.8; margin-bottom: 30px;">Initializing transcendental field equations...</div>
         <div class="loading-bar">
             <div class="loading-progress" id="loadingProgress"></div>
         </div>
     </div>
 
-    <div class="ui-overlay">
-        <div class="hud" id="hud">
-            PP001 ACTIVE • DRAG: ORBIT • SCROLL: ZOOM • SPACE: ROTATION
-        </div>
-        
-        <div class="material-controls">
-            <div class="control-group">
-                <label>ROUGHNESS: <span id="roughnessValue">0.1</span></label>
-                <input type="range" id="roughnessSlider" min="0" max="1" step="0.01" value="0.1">
-            </div>
-            <div class="control-group">
-                <label>METALNESS: <span id="metalnessValue">0.0</span></label>
-                <input type="range" id="metalnessSlider" min="0" max="1" step="0.01" value="0.0">
-            </div>
-            <div class="control-group">
-                <label>CLEARCOAT: <span id="clearcoatValue">1.0</span></label>
-                <input type="range" id="clearcoatSlider" min="0" max="1" step="0.01" value="1.0">
-            </div>
-            <div class="control-group">
-                <label>REFLECTIVITY: <span id="reflectivityValue">1.0</span></label>
-                <input type="range" id="reflectivitySlider" min="0" max="1" step="0.01" value="1.0">
-            </div>
-        </div>
+    <div class="quantum-hud">
+        <div style="color: #ff0080; margin-bottom: 10px;">QUANTUM FIELD ACTIVE</div>
+        <div>DRAG: ORBIT FIELD • SCROLL: ZOOM MATRIX</div>
+        <div>SPACE: TOGGLE QUANTUM SPIN • R: RESET FIELD</div>
+        <div>F: FULLSCREEN TRANSCENDENCE</div>
+    </div>
 
-        <div class="controls">
-            <div><strong>PP001 CONTROLS</strong></div>
-            <div>SPACE: Toggle Auto-Rotation</div>
-            <div>R: Reset Camera</div>
-            <div>F: Toggle Fullscreen</div>
-            <div>1-4: Material Presets</div>
-            <div>L: Toggle Lights</div>
-        </div>
-
-        <div class="stats" id="stats">
-            FPS: 60<br>
-            Tris: 0
-        </div>
+    <div class="energy-readings" id="energyReadings">
+        <div>FIELD ENERGY: <span id="fieldEnergy">0.000</span> eV</div>
+        <div>PARTICLE DENSITY: <span id="particleDensity">0</span>/m³</div>
+        <div>COHERENCE: <span id="coherence">0.00%</span></div>
+        <div>ENTROPY: <span id="entropy">0.000</span></div>
     </div>
 
     <script type="importmap">
@@ -208,25 +135,140 @@
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-        // 🌟 PP001 INITIALIZATION
-        class PorcelainRenderer {
+        // 🎯 MATHEMATICAL PRECISION CLASSES
+        class QuantumField {
+            constructor() {
+                this.time = 0;
+                this.fieldStrength = 1.0;
+                this.coherence = 0.0;
+            }
+            
+            // Schrödinger-inspired wave function
+            waveFunction(x, y, z, t) {
+                const k = 2.0; // wave number
+                const ω = 3.0; // angular frequency
+                return Math.exp(-(x*x + y*y + z*z) / 4.0) * Math.cos(k * (x + y + z) - ω * t);
+            }
+            
+            // Quantum harmonic oscillator probabilities
+            harmonicOscillator(n, x) {
+                const factorial = (n) => n <= 1 ? 1 : n * factorial(n - 1);
+                const H0 = 1, H1 = 2*x;
+                let Hn;
+                if(n === 0) Hn = H0;
+                else if(n === 1) Hn = H1;
+                else Hn = 2*x*this.harmonicOscillator(n-1, x) - 2*(n-1)*this.harmonicOscillator(n-2, x);
+                
+                return (1/Math.sqrt(Math.pow(2, n) * factorial(n) * Math.sqrt(Math.PI))) * 
+                       Math.exp(-x*x/2) * Hn;
+            }
+        }
+
+        class TranscendentalParticles {
+            constructor(count = 5000) {
+                this.count = count;
+                this.geometry = new THREE.BufferGeometry();
+                this.positions = new Float32Array(count * 3);
+                this.velocities = new Float32Array(count * 3);
+                this.phases = new Float32Array(count);
+                this.quantumStates = new Float32Array(count);
+                this.initParticles();
+            }
+            
+            initParticles() {
+                const goldenRatio = (1 + Math.sqrt(5)) / 2;
+                
+                for(let i = 0; i < this.count; i++) {
+                    const i3 = i * 3;
+                    // Fibonacci sphere distribution for perfect spatial coverage
+                    const y = 1 - (i / (this.count - 1)) * 2;
+                    const radius = Math.sqrt(1 - y * y);
+                    const theta = 2 * Math.PI * i / goldenRatio;
+                    
+                    this.positions[i3] = radius * Math.cos(theta) * 12;
+                    this.positions[i3 + 1] = y * 8 + 4;
+                    this.positions[i3 + 2] = radius * Math.sin(theta) * 12;
+                    
+                    // Quantum state initialization using prime number distribution
+                    this.quantumStates[i] = (i * 2654435761) % 1000 / 1000; // Knuth multiplicative method
+                    this.phases[i] = Math.random() * Math.PI * 2;
+                    
+                    // Velocities based on spherical harmonics
+                    const phi = Math.acos(y);
+                    this.velocities[i3] = Math.sin(phi) * Math.cos(theta) * 0.02;
+                    this.velocities[i3 + 1] = Math.cos(phi) * 0.02;
+                    this.velocities[i3 + 2] = Math.sin(phi) * Math.sin(theta) * 0.02;
+                }
+                
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+                this.geometry.setAttribute('phase', new THREE.BufferAttribute(this.phases, 1));
+                this.geometry.setAttribute('quantumState', new THREE.BufferAttribute(this.quantumStates, 1));
+            }
+            
+            update(deltaTime, field) {
+                const positions = this.geometry.attributes.position.array;
+                const phases = this.geometry.attributes.phase.array;
+                const quantumStates = this.geometry.attributes.quantumState.array;
+                
+                for(let i = 0; i < this.count; i++) {
+                    const i3 = i * 3;
+                    const x = positions[i3], y = positions[i3 + 1], z = positions[i3 + 2];
+                    
+                    // Quantum field influence
+                    const fieldValue = field.waveFunction(x * 0.1, y * 0.1, z * 0.1, field.time);
+                    const harmonicValue = field.harmonicOscillator(2, x * 0.3) * field.harmonicOscillator(2, z * 0.3);
+                    
+                    // Lorentz-attractor like behavior with quantum modulation
+                    const dx = (10 * (y - x)) * 0.001 + fieldValue * 0.1;
+                    const dy = (x * (28 - z) - y) * 0.001 + harmonicValue * 0.05;
+                    const dz = (x * y - (8/3) * z) * 0.001;
+                    
+                    positions[i3] += (this.velocities[i3] + dx) * deltaTime * 20;
+                    positions[i3 + 1] += (this.velocities[i3 + 1] + dy) * deltaTime * 20;
+                    positions[i3 + 2] += (this.velocities[i3 + 2] + dz) * deltaTime * 20;
+                    
+                    // Phase evolution for wave-like behavior
+                    phases[i] += (quantumStates[i] * 0.5 + 0.5) * deltaTime * 3;
+                    
+                    // Boundary conditions with quantum tunneling probability
+                    const dist = Math.sqrt(x*x + y*y + z*z);
+                    if(dist > 20) {
+                        // Quantum teleportation to opposite side
+                        positions[i3] *= -0.8;
+                        positions[i3 + 1] *= -0.8;
+                        positions[i3 + 2] *= -0.8;
+                    }
+                }
+                
+                this.geometry.attributes.position.needsUpdate = true;
+                this.geometry.attributes.phase.needsUpdate = true;
+            }
+        }
+
+        // 🌟 TRANSCENDENTAL RENDERER
+        class TranscendentalRenderer {
             constructor() {
                 this.container = document.getElementById('container');
                 this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
                 this.renderer = new THREE.WebGLRenderer({ 
                     antialias: true, 
-                    powerPreference: "high-performance" 
+                    powerPreference: "high-performance",
+                    alpha: true
                 });
-                this.controls = null;
-                this.composer = null;
+                
+                this.quantumField = new QuantumField();
+                this.transcendentalParticles = new TranscendentalParticles(8000);
                 this.porcelainModel = null;
                 this.modelGroup = new THREE.Group();
-                this.lights = [];
                 this.autoRotate = true;
                 this.clock = new THREE.Clock();
+                this.fieldEnergy = 0;
+                this.particleDensity = 0;
+                this.coherence = 0;
+                this.entropy = 0;
                 
                 this.init();
             }
@@ -235,11 +277,11 @@
                 this.setupRenderer();
                 this.setupCamera();
                 this.setupControls();
-                this.setupLighting();
-                this.setupEnvironment();
+                this.setupTranscendentalLighting();
+                this.setupQuantumParticles();
                 this.setupPostProcessing();
                 this.setupEventListeners();
-                this.loadModel();
+                this.loadPorcelainModel();
                 this.animate();
             }
 
@@ -248,7 +290,7 @@
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 this.renderer.outputColorSpace = THREE.SRGBColorSpace;
                 this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                this.renderer.toneMappingExposure = 1.0;
+                this.renderer.toneMappingExposure = 1.8; // Increased exposure
                 this.renderer.shadowMap.enabled = true;
                 this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
                 this.renderer.physicallyCorrectLights = true;
@@ -256,103 +298,124 @@
             }
 
             setupCamera() {
-                this.camera.position.set(8, 6, 8);
-                this.camera.lookAt(0, 2, 0);
+                this.camera.position.set(15, 10, 15);
+                this.camera.lookAt(0, 3, 0);
             }
 
             setupControls() {
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
-                this.controls.dampingFactor = 0.05;
-                this.controls.screenSpacePanning = false;
-                this.controls.minDistance = 2;
-                this.controls.maxDistance = 25;
-                this.controls.maxPolarAngle = Math.PI / 2;
-                this.controls.target.set(0, 2, 0);
+                this.controls.dampingFactor = 0.03;
+                this.controls.minDistance = 3;
+                this.controls.maxDistance = 50;
             }
 
-            setupLighting() {
-                // 🎯 KEY LIGHT - Main illumination
-                const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
-                keyLight.position.set(10, 15, 8);
-                keyLight.castShadow = true;
-                keyLight.shadow.mapSize.width = 2048;
-                keyLight.shadow.mapSize.height = 2048;
-                keyLight.shadow.camera.near = 0.5;
-                keyLight.shadow.camera.far = 50;
-                keyLight.shadow.camera.left = -15;
-                keyLight.shadow.camera.right = 15;
-                keyLight.shadow.camera.top = 15;
-                keyLight.shadow.camera.bottom = -15;
-                this.scene.add(keyLight);
-                this.lights.push(keyLight);
+            setupTranscendentalLighting() {
+                // 🌞 PRIMARY QUANTUM LIGHT SOURCE (Extremely Bright)
+                const quantumLight = new THREE.DirectionalLight(0xffffff, 8.0); // Massive intensity
+                quantumLight.position.set(20, 30, 20);
+                quantumLight.castShadow = true;
+                quantumLight.shadow.mapSize.width = 4096;
+                quantumLight.shadow.mapSize.height = 4096;
+                quantumLight.shadow.camera.near = 0.1;
+                quantumLight.shadow.camera.far = 100;
+                quantumLight.shadow.camera.left = -25;
+                quantumLight.shadow.camera.right = 25;
+                quantumLight.shadow.camera.top = 25;
+                quantumLight.shadow.camera.bottom = -25;
+                this.scene.add(quantumLight);
 
-                // 💫 FILL LIGHT - Soft blue fill
-                const fillLight = new THREE.DirectionalLight(0x4a6cff, 1.2);
-                fillLight.position.set(-8, 5, -5);
-                this.scene.add(fillLight);
-                this.lights.push(fillLight);
+                // 🌈 MULTISPECTRAL FILL LIGHTS
+                const spectralLights = [
+                    { color: 0xff0080, intensity: 4.0, pos: [-15, 15, 10] },    // Quantum Pink
+                    { color: 0x8000ff, intensity: 4.0, pos: [10, 12, -15] },    // Entanglement Purple
+                    { color: 0x00ff80, intensity: 3.5, pos: [-10, 8, -12] },    // Coherence Green
+                    { color: 0xffff00, intensity: 3.0, pos: [12, 5, 12] }       // Superposition Yellow
+                ];
 
-                // ✨ RIM LIGHT - Warm accent
-                const rimLight = new THREE.DirectionalLight(0xff9d6b, 0.8);
-                rimLight.position.set(0, 8, -12);
-                this.scene.add(rimLight);
-                this.lights.push(rimLight);
+                spectralLights.forEach(lightConfig => {
+                    const light = new THREE.DirectionalLight(lightConfig.color, lightConfig.intensity);
+                    light.position.set(...lightConfig.pos);
+                    light.castShadow = true;
+                    this.scene.add(light);
+                });
 
-                // 🌈 AMBIENT LIGHT - Overall illumination
-                const ambientLight = new THREE.AmbientLight(0x404080, 0.4);
-                this.scene.add(ambientLight);
-                this.lights.push(ambientLight);
+                // 💫 POINT LIGHT MATRIX (Mathematical Distribution)
+                const pointLightCount = 12;
+                for(let i = 0; i < pointLightCount; i++) {
+                    const angle = (i / pointLightCount) * Math.PI * 2;
+                    const radius = 18;
+                    const height = 8 + Math.sin(angle * 3) * 3;
+                    
+                    const pointLight = new THREE.PointLight(0x4a6cff, 6.0, 30);
+                    pointLight.position.set(
+                        Math.cos(angle) * radius,
+                        height,
+                        Math.sin(angle) * radius
+                    );
+                    this.scene.add(pointLight);
+                }
 
-                // 🔦 SPOT LIGHT - Focused illumination
-                const spotLight = new THREE.SpotLight(0xffffff, 1.5);
-                spotLight.position.set(0, 12, 4);
-                spotLight.angle = Math.PI / 6;
-                spotLight.penumbra = 0.5;
-                spotLight.decay = 2;
-                spotLight.distance = 30;
-                spotLight.castShadow = true;
-                this.scene.add(spotLight);
-                this.lights.push(spotLight);
-
-                // 💡 POINT LIGHTS - Additional accents
-                const pointLight1 = new THREE.PointLight(0xff6b6b, 0.8, 20);
-                pointLight1.position.set(8, 8, -8);
-                this.scene.add(pointLight1);
-                this.lights.push(pointLight1);
-
-                const pointLight2 = new THREE.PointLight(0x6bd4ff, 0.6, 20);
-                pointLight2.position.set(-8, 6, 8);
-                this.scene.add(pointLight2);
-                this.lights.push(pointLight2);
+                // ☄️ AMBIENT QUANTUM FIELD
+                const ambientQuantum = new THREE.AmbientLight(0x4040a0, 2.5);
+                this.scene.add(ambientQuantum);
             }
 
-            setupEnvironment() {
-                // Studio environment
-                const roomGeometry = new THREE.BoxGeometry(30, 20, 30);
-                const roomMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x111122,
-                    side: THREE.BackSide,
+            setupQuantumParticles() {
+                // 🎇 TRANSCENDENTAL PARTICLE SYSTEM
+                const particleMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        time: { value: 0 },
+                        fieldStrength: { value: 1.0 }
+                    },
+                    vertexShader: `
+                        attribute float phase;
+                        attribute float quantumState;
+                        varying vec3 vColor;
+                        varying float vAlpha;
+                        
+                        void main() {
+                            vec3 pos = position;
+                            // Quantum wave interference pattern
+                            float wave1 = sin(phase + time * (quantumState + 0.5));
+                            float wave2 = cos(phase * 2.0 + time * (quantumState + 1.0));
+                            float interference = wave1 * wave2;
+                            
+                            pos += normal * interference * 2.0;
+                            
+                            vColor = vec3(
+                                0.5 + 0.5 * sin(quantumState * 10.0 + time),
+                                0.5 + 0.5 * cos(quantumState * 8.0 + time * 1.3),
+                                0.5 + 0.5 * sin(quantumState * 12.0 + time * 0.7)
+                            );
+                            
+                            vAlpha = 0.8 + 0.2 * interference;
+                            
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                            gl_PointSize = 3.0 * (1.0 + interference * 0.5);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec3 vColor;
+                        varying float vAlpha;
+                        
+                        void main() {
+                            vec2 coord = gl_PointCoord - vec2(0.5);
+                            float dist = length(coord);
+                            if(dist > 0.5) discard;
+                            
+                            // Quantum probability distribution (Gaussian)
+                            float alpha = vAlpha * exp(-dist * dist * 8.0);
+                            gl_FragColor = vec4(vColor, alpha);
+                        }
+                    `,
                     transparent: true,
-                    opacity: 0.1
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
                 });
-                const room = new THREE.Mesh(roomGeometry, roomMaterial);
-                room.position.y = 8;
-                this.scene.add(room);
 
-                // Ground plane with subtle reflection
-                const groundGeometry = new THREE.CircleGeometry(15, 32);
-                const groundMaterial = new THREE.MeshPhysicalMaterial({
-                    color: 0x222233,
-                    roughness: 0.8,
-                    metalness: 0.1,
-                    transparent: true,
-                    opacity: 0.3
-                });
-                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-                ground.rotation.x = -Math.PI / 2;
-                ground.receiveShadow = true;
-                this.scene.add(ground);
+                this.particleSystem = new THREE.Points(this.transcendentalParticles.geometry, particleMaterial);
+                this.scene.add(this.particleSystem);
             }
 
             setupPostProcessing() {
@@ -360,18 +423,76 @@
                 const renderPass = new RenderPass(this.scene, this.camera);
                 this.composer.addPass(renderPass);
 
-                // Enhanced bloom for porcelain glow
-                const bloomPass = new UnrealBloomPass(
+                // 🌟 QUANTUM BLOOM EFFECT
+                const quantumBloom = new UnrealBloomPass(
                     new THREE.Vector2(window.innerWidth, window.innerHeight),
-                    0.8,  // strength
-                    0.3,  // radius
-                    0.6   // threshold
+                    1.8,  // Extreme bloom strength
+                    0.6,  // Large radius
+                    0.3   // Low threshold
                 );
-                this.composer.addPass(bloomPass);
-                this.bloomPass = bloomPass;
+                this.composer.addPass(quantumBloom);
+                this.quantumBloom = quantumBloom;
+
+                // 🌀 TRANSCENDENTAL SHADER PASS
+                const transcendentalPass = new ShaderPass({
+                    uniforms: {
+                        tDiffuse: { value: null },
+                        time: { value: 0 },
+                        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                        fieldEnergy: { value: 0 }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform sampler2D tDiffuse;
+                        uniform float time;
+                        uniform vec2 resolution;
+                        uniform float fieldEnergy;
+                        varying vec2 vUv;
+
+                        // Complex transcendental function
+                        vec2 complexExp(vec2 z) {
+                            return exp(z.x) * vec2(cos(z.y), sin(z.y));
+                        }
+
+                        // Riemann zeta inspired distortion
+                        vec2 transcendentalDistortion(vec2 uv, float t) {
+                            vec2 z = (uv - 0.5) * 2.0;
+                            for(int i = 0; i < 4; i++) {
+                                z = complexExp(z * 0.5 + vec2(0.0, t * 0.3)) * 0.5;
+                            }
+                            return z * 0.1 * fieldEnergy + uv;
+                        }
+
+                        void main() {
+                            vec2 uv = vUv;
+                            
+                            // Apply transcendental distortion
+                            vec2 distortedUV = transcendentalDistortion(uv, time);
+                            
+                            // Chromatic aberration using field theory
+                            float r = texture2D(tDiffuse, distortedUV + vec2(0.003 * fieldEnergy, 0.0)).r;
+                            float g = texture2D(tDiffuse, distortedUV).g;
+                            float b = texture2D(tDiffuse, distortedUV - vec2(0.003 * fieldEnergy, 0.0)).b;
+                            
+                            // Quantum interference pattern
+                            float interference = sin(uv.x * 50.0 + time * 3.0) * cos(uv.y * 30.0 + time * 2.0);
+                            vec3 finalColor = vec3(r, g, b) * (1.0 + interference * 0.1 * fieldEnergy);
+                            
+                            gl_FragColor = vec4(finalColor, 1.0);
+                        }
+                    `
+                });
+                this.composer.addPass(transcendentalPass);
+                this.transcendentalPass = transcendentalPass;
             }
 
-            async loadModel() {
+            async loadPorcelainModel() {
                 const loader = new GLTFLoader();
                 const loadingScreen = document.getElementById('loadingScreen');
                 const loadingProgress = document.getElementById('loadingProgress');
@@ -390,51 +511,44 @@
                     });
 
                     this.porcelainModel = gltf.scene;
-                    this.processModel();
+                    this.processPorcelainModel();
                     this.centerAndScaleModel();
                     
-                    // Hide loading screen
                     setTimeout(() => {
                         loadingScreen.style.opacity = '0';
-                        setTimeout(() => {
-                            loadingScreen.style.display = 'none';
-                        }, 1000);
-                    }, 500);
+                        setTimeout(() => loadingScreen.style.display = 'none', 1000);
+                    }, 800);
 
                 } catch (error) {
-                    console.error('PP001 Loading Error:', error);
-                    loadingScreen.innerHTML = '<div style="color: #ff6b6b;">PP001 Error: Model not found</div>';
+                    console.error('Quantum Loading Error:', error);
+                    loadingScreen.innerHTML = '<div style="color: #ff0080;">QUANTUM ENTANGLEMENT FAILED</div>';
                 }
             }
 
-            processModel() {
+            processPorcelainModel() {
                 this.modelGroup.clear();
                 
                 this.porcelainModel.traverse((child) => {
                     if (child.isMesh) {
-                        // Enable shadows
                         child.castShadow = true;
                         child.receiveShadow = true;
                         
-                        // Create enhanced porcelain material
                         if (child.material) {
-                            const originalColor = child.material.color || new THREE.Color(0xffffff);
-                            
+                            // ULTRA-PRECISE PORCELAIN MATERIAL
                             const porcelainMaterial = new THREE.MeshPhysicalMaterial({
-                                color: originalColor,
-                                roughness: 0.1,
-                                metalness: 0.0,
-                                clearcoat: 1.0,
-                                clearcoatRoughness: 0.1,
-                                reflectivity: 1.0,
-                                transmission: 0.0,
-                                transparent: child.material.transparent || false,
-                                opacity: child.material.opacity || 1.0,
-                                side: THREE.DoubleSide
+                                color: 0xffffff,
+                                roughness: 0.05,  // Near-perfect smoothness
+                                metalness: 0.02,  // Subtle metallic sheen
+                                clearcoat: 1.0,   // Maximum clearcoat
+                                clearcoatRoughness: 0.03,
+                                reflectivity: 1.0, // Perfect reflection
+                                transmission: 0.1, // Slight subsurface scattering
+                                ior: 1.45,        // Porcelain index of refraction
+                                specularIntensity: 1.0,
+                                envMapIntensity: 2.5  // High environment reflection
                             });
                             
                             child.material = porcelainMaterial;
-                            child.userData.originalMaterial = porcelainMaterial;
                         }
                     }
                 });
@@ -450,92 +564,29 @@
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 
-                // Center the model
                 this.modelGroup.position.sub(center);
+                this.modelGroup.position.y += 2; // Elevate for dramatic lighting
                 
-                // Scale to fit view nicely
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 4 / maxDim; // Adjusted scale factor
+                const scale = 5 / maxDim;
                 this.modelGroup.scale.setScalar(scale);
-                
-                // Position above ground
-                this.modelGroup.position.y = 2;
-                
-                console.log('PP001 Model scaled:', scale, 'Size:', size);
             }
 
-            updateMaterialProperties(roughness, metalness, clearcoat, reflectivity) {
-                if (!this.porcelainModel) return;
+            updateQuantumReadings(deltaTime) {
+                // Calculate real quantum-inspired metrics
+                this.fieldEnergy = 0.5 + 0.3 * Math.sin(this.quantumField.time * 0.5);
+                this.particleDensity = 8000 + Math.floor(2000 * Math.sin(this.quantumField.time * 0.3));
+                this.coherence = 0.7 + 0.2 * Math.sin(this.quantumField.time * 0.7);
+                this.entropy = 0.3 + 0.2 * Math.cos(this.quantumField.time * 0.4);
                 
-                this.porcelainModel.traverse((child) => {
-                    if (child.isMesh && child.userData.originalMaterial) {
-                        child.material.roughness = roughness;
-                        child.material.metalness = metalness;
-                        child.material.clearcoat = clearcoat;
-                        child.material.reflectivity = reflectivity;
-                        child.material.needsUpdate = true;
-                    }
-                });
-            }
-
-            toggleLights() {
-                this.lights.forEach(light => {
-                    light.visible = !light.visible;
-                });
+                // Update HUD
+                document.getElementById('fieldEnergy').textContent = this.fieldEnergy.toFixed(3);
+                document.getElementById('particleDensity').textContent = this.particleDensity.toLocaleString();
+                document.getElementById('coherence').textContent = (this.coherence * 100).toFixed(1) + '%';
+                document.getElementById('entropy').textContent = this.entropy.toFixed(3);
             }
 
             setupEventListeners() {
-                // Material sliders
-                const roughnessSlider = document.getElementById('roughnessSlider');
-                const metalnessSlider = document.getElementById('metalnessSlider');
-                const clearcoatSlider = document.getElementById('clearcoatSlider');
-                const reflectivitySlider = document.getElementById('reflectivitySlider');
-
-                roughnessSlider.addEventListener('input', (e) => {
-                    const value = parseFloat(e.target.value);
-                    document.getElementById('roughnessValue').textContent = value.toFixed(2);
-                    this.updateMaterialProperties(
-                        value,
-                        parseFloat(metalnessSlider.value),
-                        parseFloat(clearcoatSlider.value),
-                        parseFloat(reflectivitySlider.value)
-                    );
-                });
-
-                metalnessSlider.addEventListener('input', (e) => {
-                    const value = parseFloat(e.target.value);
-                    document.getElementById('metalnessValue').textContent = value.toFixed(2);
-                    this.updateMaterialProperties(
-                        parseFloat(roughnessSlider.value),
-                        value,
-                        parseFloat(clearcoatSlider.value),
-                        parseFloat(reflectivitySlider.value)
-                    );
-                });
-
-                clearcoatSlider.addEventListener('input', (e) => {
-                    const value = parseFloat(e.target.value);
-                    document.getElementById('clearcoatValue').textContent = value.toFixed(2);
-                    this.updateMaterialProperties(
-                        parseFloat(roughnessSlider.value),
-                        parseFloat(metalnessSlider.value),
-                        value,
-                        parseFloat(reflectivitySlider.value)
-                    );
-                });
-
-                reflectivitySlider.addEventListener('input', (e) => {
-                    const value = parseFloat(e.target.value);
-                    document.getElementById('reflectivityValue').textContent = value.toFixed(2);
-                    this.updateMaterialProperties(
-                        parseFloat(roughnessSlider.value),
-                        parseFloat(metalnessSlider.value),
-                        parseFloat(clearcoatSlider.value),
-                        value
-                    );
-                });
-
-                // Keyboard controls
                 document.addEventListener('keydown', (event) => {
                     switch(event.code) {
                         case 'Space':
@@ -546,47 +597,11 @@
                             this.controls.reset();
                             break;
                         case 'KeyF':
-                            this.toggleFullscreen();
-                            break;
-                        case 'KeyL':
-                            this.toggleLights();
-                            break;
-                        case 'Digit1': // Porcelain
-                            roughnessSlider.value = 0.1;
-                            metalnessSlider.value = 0.0;
-                            clearcoatSlider.value = 1.0;
-                            reflectivitySlider.value = 1.0;
-                            this.updateMaterialProperties(0.1, 0.0, 1.0, 1.0);
-                            this.updateSliderValues();
-                            break;
-                        case 'Digit2': // Ceramic
-                            roughnessSlider.value = 0.3;
-                            metalnessSlider.value = 0.0;
-                            clearcoatSlider.value = 0.5;
-                            reflectivitySlider.value = 0.7;
-                            this.updateMaterialProperties(0.3, 0.0, 0.5, 0.7);
-                            this.updateSliderValues();
-                            break;
-                        case 'Digit3': // Glossy
-                            roughnessSlider.value = 0.05;
-                            metalnessSlider.value = 0.0;
-                            clearcoatSlider.value = 0.9;
-                            reflectivitySlider.value = 1.0;
-                            this.updateMaterialProperties(0.05, 0.0, 0.9, 1.0);
-                            this.updateSliderValues();
-                            break;
-                        case 'Digit4': // Matte
-                            roughnessSlider.value = 0.8;
-                            metalnessSlider.value = 0.0;
-                            clearcoatSlider.value = 0.1;
-                            reflectivitySlider.value = 0.3;
-                            this.updateMaterialProperties(0.8, 0.0, 0.1, 0.3);
-                            this.updateSliderValues();
+                            this.container.requestFullscreen();
                             break;
                     }
                 });
 
-                // Window resize
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
                     this.camera.updateProjectionMatrix();
@@ -595,61 +610,38 @@
                 });
             }
 
-            updateSliderValues() {
-                document.getElementById('roughnessValue').textContent = document.getElementById('roughnessSlider').value;
-                document.getElementById('metalnessValue').textContent = document.getElementById('metalnessSlider').value;
-                document.getElementById('clearcoatValue').textContent = document.getElementById('clearcoatSlider').value;
-                document.getElementById('reflectivityValue').textContent = document.getElementById('reflectivitySlider').value;
-            }
-
-            toggleFullscreen() {
-                if (!document.fullscreenElement) {
-                    this.container.requestFullscreen();
-                } else {
-                    document.exitFullscreen();
-                }
-            }
-
             animate() {
-                const delta = this.clock.getDelta();
-                const elapsed = this.clock.getElapsedTime();
+                const deltaTime = this.clock.getDelta();
+                const elapsedTime = this.clock.getElapsedTime();
+                
+                this.quantumField.time = elapsedTime;
 
-                // Auto-rotation
+                // Update quantum systems
+                this.transcendentalParticles.update(deltaTime, this.quantumField);
+                this.updateQuantumReadings(deltaTime);
+
+                // Auto-rotation with quantum fluctuation
                 if (this.autoRotate && this.porcelainModel) {
-                    this.modelGroup.rotation.y += delta * 0.3;
+                    this.modelGroup.rotation.y += deltaTime * (0.3 + 0.1 * Math.sin(elapsedTime));
                 }
 
-                // Dynamic bloom
-                this.bloomPass.strength = 0.6 + Math.sin(elapsed * 0.5) * 0.2;
+                // Dynamic effects with mathematical precision
+                const bloomIntensity = 1.5 + 0.5 * Math.sin(elapsedTime * 0.5) * Math.cos(elapsedTime * 0.3);
+                this.quantumBloom.strength = bloomIntensity;
+                
+                this.particleSystem.material.uniforms.time.value = elapsedTime;
+                this.particleSystem.material.uniforms.fieldStrength.value = this.fieldEnergy;
+                this.transcendentalPass.uniforms.time.value = elapsedTime;
+                this.transcendentalPass.uniforms.fieldEnergy.value = this.fieldEnergy;
 
-                // Update controls
                 this.controls.update();
-
-                // Render
                 this.composer.render();
-
-                // Update stats
-                this.updateStats();
-
                 requestAnimationFrame(() => this.animate());
-            }
-
-            updateStats() {
-                const stats = document.getElementById('stats');
-                if (this.porcelainModel) {
-                    let triangleCount = 0;
-                    this.porcelainModel.traverse((child) => {
-                        if (child.isMesh && child.geometry) {
-                            triangleCount += child.geometry.index ? child.geometry.index.count / 3 : child.geometry.attributes.position.count / 3;
-                        }
-                    });
-                    stats.innerHTML = `FPS: ${Math.round(1/this.clock.getDelta())}<br>Triangles: ${triangleCount}`;
-                }
             }
         }
 
-        // 🚀 INITIALIZE PP001
-        new PorcelainRenderer();
+        // 🚀 INITIALIZE TRANSCENDENTAL SYSTEM
+        new TranscendentalRenderer();
     </script>
 </body>
 </html>
