@@ -214,11 +214,17 @@
         // ✨ RENDERER WITH MAXIMUM QUALITY
         const renderer = new THREE.WebGLRenderer({ 
             antialias: true, 
-            powerPreference: "high-performance" 
+            powerPreference: "high-performance",
+            alpha: false
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        // prefer newest API, but keep compatibility fallbacks
+        if ( 'outputColorSpace' in renderer ) {
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+        } else {
+            renderer.outputEncoding = THREE.sRGBEncoding;
+        }
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.2;
         renderer.shadowMap.enabled = true;
@@ -236,32 +242,37 @@
         controls.maxPolarAngle = Math.PI / 2;
 
         // 💡 ADVANCED LIGHTING SYSTEM
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        const ambientLight = new THREE.HemisphereLight(0xaaaaee, 0x222222, 0.6);
         scene.add(ambientLight);
 
-        const mainLight = new THREE.DirectionalLight(0xffffff, 2);
-        mainLight.position.set(10, 10, 5);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 2.5);
+        mainLight.position.set(8, 12, 6);
         mainLight.castShadow = true;
-        mainLight.shadow.mapSize.width = 2048;
-        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.mapSize.width = 4096;
+        mainLight.shadow.mapSize.height = 4096;
         mainLight.shadow.camera.near = 0.5;
-        mainLight.shadow.camera.far = 50;
+        mainLight.shadow.camera.far = 100;
         mainLight.shadow.camera.left = -20;
         mainLight.shadow.camera.right = 20;
         mainLight.shadow.camera.top = 20;
         mainLight.shadow.camera.bottom = -20;
+        mainLight.shadow.bias = -0.0005;
         scene.add(mainLight);
 
-        const fillLight = new THREE.DirectionalLight(0x4a6cff, 1);
-        fillLight.position.set(-5, 3, -5);
+        // A soft fill/rim to model
+        const fillLight = new THREE.DirectionalLight(0x87aaff, 0.7);
+        fillLight.position.set(-6, 3, -5);
         scene.add(fillLight);
 
-        const rimLight = new THREE.DirectionalLight(0xff6b6b, 0.8);
-        rimLight.position.set(0, 5, -8);
+        const rimLight = new THREE.DirectionalLight(0xffc0c0, 0.6);
+        rimLight.position.set(0, 6, -8);
         scene.add(rimLight);
 
+        // 🔧 PMREM Generator for realistic reflections
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        pmremGenerator.compileEquirectangularShader();
+
         // 🔮 ENVIRONMENT MAP
-        const envColors = [0x1a1a2e, 0x16213e, 0x0f3460, 0x533483];
         const envMap = new THREE.CubeTextureLoader().load([
             'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
             'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
@@ -269,8 +280,12 @@
             'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
             'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
             'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
-        ]);
-        scene.environment = envMap;
+        ], () => {
+            // create a PMREM from the cubemap for accurate lighting/reflections
+            const env = pmremGenerator.fromCubemap(envMap).texture;
+            scene.environment = env;
+            scene.background = new THREE.Color(0x000000); // keep background black
+        });
 
         // 🌌 PARTICLE SYSTEM
         const particleCount = 2000;
@@ -308,11 +323,36 @@
             transparent: true,
             opacity: 0.8,
             blending: THREE.AdditiveBlending,
-            sizeAttenuation: true
+            sizeAttenuation: true,
+            depthWrite: false
         });
 
         const particleSystem = new THREE.Points(particles, particleMaterial);
+        particleSystem.renderOrder = 1;
         scene.add(particleSystem);
+
+        // Ground / shadow catcher
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x080808,
+            roughness: 0.7,
+            metalness: 0.0
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        ground.receiveTouch = true;
+        scene.add(ground);
+
+        // Slight glossy disc under model to catch subtle reflections
+        const discGeo = new THREE.CircleGeometry(10, 64);
+        const discMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.05 });
+        const disc = new THREE.Mesh(discGeo, discMat);
+        disc.rotation.x = -Math.PI / 2;
+        disc.position.y = 0.001; // nudge up to avoid z-fighting
+        disc.receiveShadow = true;
+        scene.add(disc);
 
         // 🎭 POST-PROCESSING
         const composer = new EffectComposer(renderer);
@@ -397,37 +437,77 @@
                         child.receiveShadow = true;
                         
                         if (child.material) {
-                            // Convert to physically-based material
-                            const originalMaterial = child.material;
+                            const orig = child.material;
+                            const color = (orig.color) ? orig.color.clone() : new THREE.Color(0xffffff);
+
                             const pbrMaterial = new THREE.MeshPhysicalMaterial({
-                                color: originalMaterial.color || new THREE.Color(0xffffff),
-                                roughness: 0.1,
-                                metalness: 0.0,
+                                color: color,
+                                roughness: Math.max(0.02, orig.roughness ?? 0.1),
+                                metalness: orig.metalness ?? 0.0,
                                 clearcoat: 1.0,
-                                clearcoatRoughness: 0.1,
+                                clearcoatRoughness: 0.06,
                                 reflectivity: 1.0,
-                                transmission: 0.0,
-                                transparent: originalMaterial.transparent || false,
-                                opacity: originalMaterial.opacity || 1.0
+                                transmission: orig.transmission ?? 0.0,
+                                transparent: orig.transparent || false,
+                                opacity: orig.opacity ?? 1.0,
+                                envMapIntensity: 1.0
                             });
-                            
+
+                            // copy maps if present (albedo/normal/roughness) to preserve detail
+                            if (orig.map) pbrMaterial.map = orig.map;
+                            if (orig.normalMap) pbrMaterial.normalMap = orig.normalMap;
+                            if (orig.roughnessMap) pbrMaterial.roughnessMap = orig.roughnessMap;
+                            if (orig.metalnessMap) pbrMaterial.metalnessMap = orig.metalnessMap;
+
                             child.material = pbrMaterial;
+                            child.material.needsUpdate = true;
                         }
                     }
                 });
 
                 modelGroup.add(porcelainModel);
                 
-                // Center and scale model
+                // Center, scale and place the model on the ground
                 const box = new THREE.Box3().setFromObject(modelGroup);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 
+                // Center to origin
                 modelGroup.position.sub(center);
+
+                // Scale to a comfortable size (target height ~5 units)
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 5 / maxDim;
+                const scale = (maxDim > 0) ? (5 / maxDim) : 1.0;
                 modelGroup.scale.setScalar(scale);
-                
+
+                // Update matrix & recompute bounds after scale
+                modelGroup.updateWorldMatrix(true, true);
+                const boxAfter = new THREE.Box3().setFromObject(modelGroup);
+                const minY = boxAfter.min.y;
+
+                // Move model up so its lowest point sits on y=0 (the ground)
+                modelGroup.position.y -= minY;
+
+                // Aim main light at the model
+                mainLight.target = modelGroup;
+                mainLight.target.updateMatrixWorld();
+
+                // Adjust camera and controls to frame the model
+                const modelHeight = boxAfter.getSize(new THREE.Vector3()).y;
+                controls.target.set(0, modelHeight * 0.4, 0);
+                controls.update();
+                camera.position.set(modelHeight * 1.4, modelHeight * 0.8, modelHeight * 1.4);
+                camera.lookAt(controls.target);
+
+                // Ensure materials pick up the generated environment
+                modelGroup.traverse((child) => {
+                    if (child.isMesh && child.material && scene.environment) {
+                        child.material.envMap = scene.environment;
+                        child.material.envMapIntensity = 1.0;
+                        child.material.needsUpdate = true;
+                    }
+                });
+
                 // Hide loading screen
                 setTimeout(() => {
                     loadingScreen.style.opacity = '0';
@@ -437,9 +517,14 @@
                 }, 500);
             },
             (xhr) => {
-                // Progress updates
-                const percentComplete = (xhr.loaded / xhr.total) * 100;
-                loadingProgress.style.width = percentComplete + '%';
+                // Progress updates (guard against xhr.total being undefined)
+                if (xhr && xhr.lengthComputable) {
+                    const percentComplete = (xhr.loaded / xhr.total) * 100;
+                    loadingProgress.style.width = percentComplete + '%';
+                } else if (xhr && xhr.loaded) {
+                    // fallback progress estimate
+                    loadingProgress.style.width = Math.min(95, (xhr.loaded / 1000000) * 100) + '%';
+                }
             },
             (error) => {
                 console.error('Error loading model:', error);
@@ -458,15 +543,16 @@
 
             // Auto-rotation
             if (autoRotate && porcelainModel) {
-                modelGroup.rotation.y += delta * 0.3;
+                // rotate the group gently
+                modelGroup.rotation.y += delta * 0.25;
             }
 
             // Particle animation
-            particleSystem.rotation.y += delta * 0.05;
-            particleSystem.rotation.x = Math.sin(elapsed * 0.1) * 0.1;
+            particleSystem.rotation.y += delta * 0.04;
+            particleSystem.rotation.x = Math.sin(elapsed * 0.1) * 0.06;
 
             // Dynamic effects
-            bloomPass.strength = 0.8 + Math.sin(elapsed * 0.5) * 0.4;
+            bloomPass.strength = 0.8 + Math.sin(elapsed * 0.5) * 0.35;
             customPass.uniforms.time.value = elapsed;
 
             // Update controls
@@ -510,30 +596,39 @@
             
             porcelainModel.traverse((child) => {
                 if (child.isMesh && child.material) {
+                    const mat = child.material;
                     switch(type) {
                         case 0: // Porcelain
-                            child.material.roughness = 0.1;
-                            child.material.metalness = 0.0;
-                            child.material.clearcoat = 1.0;
+                            mat.roughness = 0.08;
+                            mat.metalness = 0.0;
+                            mat.clearcoat = 1.0;
+                            mat.clearcoatRoughness = 0.06;
+                            mat.transmission = 0.0;
                             break;
                         case 1: // Metallic
-                            child.material.roughness = 0.3;
-                            child.material.metalness = 1.0;
-                            child.material.clearcoat = 0.0;
+                            mat.roughness = 0.25;
+                            mat.metalness = 1.0;
+                            mat.clearcoat = 0.0;
+                            mat.transmission = 0.0;
                             break;
                         case 2: // Glass
-                            child.material.roughness = 0.0;
-                            child.material.metalness = 0.0;
-                            child.material.transmission = 0.9;
+                            mat.roughness = 0.0;
+                            mat.metalness = 0.0;
+                            mat.transmission = 0.9;
+                            mat.opacity = 0.95;
+                            mat.transparent = true;
                             break;
                         case 3: // Gem
-                            child.material.roughness = 0.05;
-                            child.material.metalness = 0.2;
-                            child.material.clearcoat = 0.8;
+                            mat.roughness = 0.04;
+                            mat.metalness = 0.15;
+                            mat.clearcoat = 0.8;
+                            mat.clearcoatRoughness = 0.02;
                             break;
                     }
+                    mat.needsUpdate = true;
                 }
             });
+            currentMaterialType = type;
         }
 
         function toggleFullscreen() {
@@ -546,12 +641,55 @@
             }
         }
 
+        // Toggle UI checkboxes wiring
+        const bloomToggle = document.getElementById('bloomToggle');
+        const particlesToggle = document.getElementById('particlesToggle');
+        const reflectionsToggle = document.getElementById('reflectionsToggle');
+        const animationToggle = document.getElementById('animationToggle');
+
+        bloomToggle.addEventListener('change', () => {
+            bloomPass.enabled = bloomToggle.checked;
+        });
+
+        particlesToggle.addEventListener('change', () => {
+            particleSystem.visible = particlesToggle.checked;
+        });
+
+        reflectionsToggle.addEventListener('change', () => {
+            if (reflectionsToggle.checked && scene.environment) {
+                modelGroup.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.envMap = scene.environment;
+                        child.material.envMapIntensity = 1.0;
+                        child.material.needsUpdate = true;
+                    }
+                });
+            } else {
+                modelGroup.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.envMap = null;
+                        child.material.needsUpdate = true;
+                    }
+                });
+            }
+        });
+
+        animationToggle.addEventListener('change', () => {
+            autoRotate = animationToggle.checked;
+        });
+
         // 📱 WINDOW RESIZE
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             composer.setSize(window.innerWidth, window.innerHeight);
+
+            if ('outputColorSpace' in renderer) {
+                renderer.outputColorSpace = THREE.SRGBColorSpace;
+            } else {
+                renderer.outputEncoding = THREE.sRGBEncoding;
+            }
         });
 
         // 🚀 START ANIMATION
