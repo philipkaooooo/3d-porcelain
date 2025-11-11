@@ -195,6 +195,8 @@
         }
 
         .scene-card {
+          appearance: none;
+          border: none;
           --start: #3a1c63;
           --end: #101a3a;
           --accent: #ffbc6b;
@@ -263,6 +265,11 @@
         .scene-card:hover {
           transform: translateY(-10px) scale(1.03);
           border-color: rgba(255, 255, 255, 0.22);
+        }
+
+        .scene-card:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 4px;
         }
 
         @media (max-width: 1024px) {
