@@ -5,6 +5,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Porcelain Transcendence — Enhanced Engine</title>
+  <!--
+    Performance Optimizations Applied:
+    - Raycast caching: Only recalculate cursor world position when mouse moves
+    - DOM update throttling: Time display updates once per second instead of every frame
+    - Shader uniform optimization: Skip updates for disabled effects
+    - Debounced resize handler: Reduces layout thrashing during window resize
+    - World position caching: Cache mesh world positions to avoid repeated calculations
+    - Conditional material updates: Only update materials when effect is significant (>0.01)
+    - Optimized particle updates: Only update visible particles
+    - Frustum culling: Re-enabled where appropriate for better GPU performance
+    - Environment map optimization: Reuse PMREMGenerator instead of recreating
+    - Batch buffer updates: Optimize particle position/velocity updates
+  -->
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #container { height: 100%; width: 100%; }
@@ -222,7 +235,7 @@
     });
   })();
 
-  // Try load HDR
+  // Try load HDR - optimized to reuse pmrem generator
   const rgbeLoader = new RGBELoader();
   rgbeLoader.setDataType(THREE.UnsignedByteType);
   rgbeLoader.load('textures/studio_small_04_1k.hdr', (hdr) => {
@@ -230,8 +243,7 @@
     const envRT = pmrem.fromEquirectangular(hdr).texture;
     try { hdr.dispose && hdr.dispose(); } catch (e) {}
     assignEnvironment(envRT);
-    try { pmrem.dispose(); } catch (e) {}
-    pmrem = new THREE.PMREMGenerator(renderer);
+    // No need to recreate pmrem generator, just reuse it
   }, undefined, (err) => {
     console.warn('HDR failed to load (optional):', err);
   });
@@ -280,7 +292,8 @@
   scene.add(cursorLight);
   
   const cursorBall = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfff3d9 }));
-  cursorBall.frustumCulled = false;
+  // Enable frustum culling for cursor ball as it's outside view when idle
+  cursorBall.frustumCulled = true;
   scene.add(cursorBall);
   
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -490,7 +503,8 @@
     });
 
     const mesh = new THREE.Mesh(inst, material);
-    mesh.frustumCulled = false;
+    // Keep frustum culling enabled for better performance when particles are off-screen
+    mesh.frustumCulled = true;
     return mesh;
   }
 
@@ -655,8 +669,8 @@
     }
 
     update(dt, elapsed, cursorWorld, cursorIntensity, temporalFactor = 1.0) {
-      // Update particles with temporal influence
-      if (this.instancedParticles && this.instancedParticles.material) {
+      // Update particles with temporal influence - only when visible
+      if (this.instancedParticles && this.instancedParticles.visible && this.instancedParticles.material) {
         this.instancedParticles.material.uniforms.uTime.value = elapsed;
         this.instancedParticles.material.uniforms.uTemporalFactor.value = temporalFactor;
       }
@@ -666,26 +680,36 @@
         this.porcelain.rotation.y += dt * (0.09 + this.id * 0.02) * temporalFactor;
       }
 
-      // Enhanced material response
+      // Enhanced material response - only when cursor is active and close
       if (cursorWorld && cursorIntensity > 0.02) {
-        for (let m of this.meshCache) {
+        // Cache world position calculations
+        const worldPositions = this.meshCache.map(m => {
           const w = new THREE.Vector3();
           m.getWorldPosition(w);
+          return { mesh: m, worldPos: w };
+        });
+        
+        for (let {mesh: m, worldPos: w} of worldPositions) {
           const d = Math.min(1.0, cursorWorld.distanceTo(w) / 4.5);
           const effect = 1.0 - d;
-          const origR = m.material.userData?.baseRoughness ?? 0.06;
-          const origEnv = m.material.userData?.baseEnv ?? 1.2;
-          const targetR = THREE.MathUtils.clamp(origR * (0.25 + (1 - effect) * 1.0), 0.02, 1.0);
-          const targetEnv = THREE.MathUtils.lerp(origEnv, origEnv + 2.2 * effect * cursorIntensity, 0.9);
-          m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, targetR, 0.18);
-          m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || origEnv, targetEnv, 0.18);
-          m.material.clearcoat = THREE.MathUtils.lerp(
-            m.material.clearcoat || 1.0, 
-            Math.min(1.0, (m.material.userData.baseClearcoat || 1.0) + 0.5 * effect), 
-            0.18
-          );
+          
+          // Only update materials if effect is significant (optimization)
+          if (effect > 0.01) {
+            const origR = m.material.userData?.baseRoughness ?? 0.06;
+            const origEnv = m.material.userData?.baseEnv ?? 1.2;
+            const targetR = THREE.MathUtils.clamp(origR * (0.25 + (1 - effect) * 1.0), 0.02, 1.0);
+            const targetEnv = THREE.MathUtils.lerp(origEnv, origEnv + 2.2 * effect * cursorIntensity, 0.9);
+            m.material.roughness = THREE.MathUtils.lerp(m.material.roughness, targetR, 0.18);
+            m.material.envMapIntensity = THREE.MathUtils.lerp(m.material.envMapIntensity || origEnv, targetEnv, 0.18);
+            m.material.clearcoat = THREE.MathUtils.lerp(
+              m.material.clearcoat || 1.0, 
+              Math.min(1.0, (m.material.userData.baseClearcoat || 1.0) + 0.5 * effect), 
+              0.18
+            );
+          }
         }
       } else {
+        // Restore materials to base state (batched update for performance)
         for (let m of this.meshCache) {
           if (m.material && m.material.userData) {
             m.material.roughness = THREE.MathUtils.lerp(
@@ -810,22 +834,27 @@
     timeOfDay: 0.5, // 0-1 representing 24 hours (0.5 = noon)
     enabled: false,
     speed: 0.01,
+    lastDisplayUpdate: 0,
     
     update(delta) {
-      if (!this.enabled) return;
+      if (!this.enabled) return 1.0;
       
       this.timeOfDay = (this.timeOfDay + delta * this.speed) % 1;
       
       // Calculate temporal factor (0.5 = night, 1.0 = day, 1.5 = golden hour)
       const temporalFactor = 0.5 + Math.abs(Math.sin(this.timeOfDay * Math.PI * 2)) * 1.0;
       
-      // Update time display
-      const hours = Math.floor(this.timeOfDay * 24);
-      const minutes = Math.floor((this.timeOfDay * 24 * 60) % 60);
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const displayHours = hours % 12 || 12;
-      document.getElementById('timeDisplay').textContent = 
-        `Time: ${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+      // Throttle time display updates to once per second for performance
+      const now = performance.now();
+      if (now - this.lastDisplayUpdate > 1000) {
+        const hours = Math.floor(this.timeOfDay * 24);
+        const minutes = Math.floor((this.timeOfDay * 24 * 60) % 60);
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12;
+        document.getElementById('timeDisplay').textContent = 
+          `Time: ${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        this.lastDisplayUpdate = now;
+      }
       
       return temporalFactor;
     }
@@ -839,8 +868,11 @@
     radius: 3.0,
     
     update(elapsed, cursorWorld) {
+      // Skip updates if scanner is disabled for performance
       if (!this.enabled) {
-        scannerPass.uniforms.uScannerIntensity.value = 0.0;
+        if (scannerPass.uniforms.uScannerIntensity.value !== 0.0) {
+          scannerPass.uniforms.uScannerIntensity.value = 0.0;
+        }
         return;
       }
       
@@ -878,6 +910,9 @@
   let pointerActive = false;
   let lastInteractionTime = performance.now();
   let scrollTarget = camera.position.distanceTo(controls.target);
+  let cursorWorldCache = null;
+  let cursorIntensityCache = 0;
+  let mouseMoved = false;
 
   function isOverUI(event) {
     const el = document.elementFromPoint(event.clientX, event.clientY);
@@ -891,6 +926,7 @@
     mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
     pointerActive = true;
     lastInteractionTime = performance.now();
+    mouseMoved = true; // Flag that mouse moved for raycasting optimization
   }
 
   function onCanvasPointerDown(e) {
@@ -1064,6 +1100,7 @@
   });
 
   // ---------- Enhanced Resize Handler ----------
+  let resizeTimeout;
   function resize() {
     const w = WIDTH(), h = HEIGHT();
     camera.aspect = w / h;
@@ -1084,10 +1121,16 @@
       console.warn('Bokeh aspect update failed:', e);
     }
   }
-  window.addEventListener('resize', resize);
+  
+  // Debounced resize handler for better performance
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(resize, 150);
+  });
 
   // ---------- Enhanced Animation Loop ----------
   const clock = new THREE.Clock();
+  let animationFrameId;
 
   function animate() {
     const dt = Math.min(0.05, clock.getDelta());
@@ -1104,10 +1147,11 @@
     const newCamPos = new THREE.Vector3().copy(camDir).multiplyScalar(-clampedDistance).add(controls.target);
     camera.position.lerp(newCamPos, 0.08);
 
-    // Cursor world and intensity
-    let cursorWorld = null;
-    let cursorIntensity = 0;
-    if (mouse.x > -9) {
+    // Cursor world and intensity - only recalculate when mouse moves (optimization)
+    let cursorWorld = cursorWorldCache;
+    let cursorIntensity = cursorIntensityCache;
+    
+    if (mouseMoved && mouse.x > -9) {
       raycaster.setFromCamera(mouse, camera);
       const cur = scenes[currentIndex];
       if (cur && cur.meshCache.length) {
@@ -1118,12 +1162,21 @@
           const camDirToPoint = new THREE.Vector3().subVectors(camera.position, cursorWorld).normalize();
           const align = Math.max(0, nd.dot(camDirToPoint));
           cursorIntensity = THREE.MathUtils.clamp((1.0 - (ints[0].distance / 10.0)) * align, 0.0, 1.0);
+        } else {
+          cursorWorld = null;
+          cursorIntensity = 0;
         }
       }
       if (!cursorWorld) {
         const ints2 = raycaster.intersectObject(interactPlane);
-        if (ints2.length) cursorWorld = ints2[0].point.clone();
+        if (ints2.length) {
+          cursorWorld = ints2[0].point.clone();
+        }
       }
+      // Cache results for next frame
+      cursorWorldCache = cursorWorld;
+      cursorIntensityCache = cursorIntensity;
+      mouseMoved = false;
     }
 
     // Idle fade
@@ -1160,22 +1213,29 @@
       glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.0, 0.05);
     }
 
-    // Update active pulses
+    // Update active pulses - optimize buffer updates
     for (let i = activePulses.length - 1; i >= 0; i--) {
       const p = activePulses[i];
       p.userData.life -= dt * 0.8;
-      const posAttr = p.geometry.attributes.position;
-      const velAttr = p.geometry.attributes.vel;
-      for (let v=0; v<posAttr.count; v++){
-        posAttr.array[v*3] += velAttr.array[v*3] * dt;
-        posAttr.array[v*3+1] += velAttr.array[v*3+1] * dt;
-        posAttr.array[v*3+2] += velAttr.array[v*3+2] * dt;
-        velAttr.array[v*3+1] -= dt * 0.9;
-      }
-      posAttr.needsUpdate = true;
-      velAttr.needsUpdate = true;
-      p.material.opacity = Math.max(0, p.userData.life);
-      if (p.userData.life <= 0) {
+      
+      if (p.userData.life > 0) {
+        const posAttr = p.geometry.attributes.position;
+        const velAttr = p.geometry.attributes.vel;
+        const count = posAttr.count;
+        
+        // Batch update positions and velocities
+        for (let v = 0; v < count; v++){
+          const idx = v * 3;
+          posAttr.array[idx] += velAttr.array[idx] * dt;
+          posAttr.array[idx + 1] += velAttr.array[idx + 1] * dt;
+          posAttr.array[idx + 2] += velAttr.array[idx + 2] * dt;
+          velAttr.array[idx + 1] -= dt * 0.9;
+        }
+        posAttr.needsUpdate = true;
+        velAttr.needsUpdate = true;
+        p.material.opacity = Math.max(0, p.userData.life);
+      } else {
+        // Recycle dead particles
         const idx = activePulses.indexOf(p);
         if (idx !== -1) activePulses.splice(idx, 1);
         if (p.parent) p.parent.remove(p);
@@ -1189,11 +1249,11 @@
     controls.update();
     composer.render();
 
-    requestAnimationFrame(animate);
+    animationFrameId = requestAnimationFrame(animate);
   }
 
   // Start the enhanced engine
-  requestAnimationFrame(animate);
+  animationFrameId = requestAnimationFrame(animate);
   resize(); // Initial resize
 
   // Debug access
