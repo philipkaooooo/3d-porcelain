@@ -69,6 +69,7 @@
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
   import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
   import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
   import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
   import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -81,6 +82,8 @@
   const container = document.getElementById('container');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
+  // STEP 4 — exponential fog
+  scene.fog = new THREE.FogExp2(0x000010, 0.035);
 
   const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.05, 2000);
   camera.position.set(8, 4.5, 9);
@@ -89,7 +92,8 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  // STEP 4 — tone mapping exposure target
+  renderer.toneMappingExposure = 0.9;
   renderer.physicallyCorrectLights = true;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -108,7 +112,8 @@
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
 
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.35, 0.85);
+  // STEP 1 — Adjusted UnrealBloomPass according to spec
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.6, 0.85);
   composer.addPass(bloomPass);
 
   const bokehPass = new BokehPass(scene, camera, {
@@ -124,10 +129,10 @@
   composer.addPass(filmPass);
 
   // PMREM generator for environment (will accept HDR later)
-  const pmrem = new THREE.PMREMGenerator(renderer);
+  let pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
 
-  // small placeholder environment for consistent reflections
+  // small placeholder environment for consistent reflections (kept until HDR loads)
   const env = new THREE.CubeTextureLoader().load([
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
@@ -137,6 +142,23 @@
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
   ], () => {
     scene.environment = pmrem.fromCubemap(env).texture;
+  });
+
+  // STEP 4 — HDRI loader for better reflections (non-blocking)
+  const rgbeLoader = new RGBELoader();
+  rgbeLoader.setDataType(THREE.UnsignedByteType); // keep memory reasonable
+  rgbeLoader.load('textures/studio_small_04_1k.hdr', (hdrTex) => {
+    hdrTex.mapping = THREE.EquirectangularReflectionMapping;
+    // create PMREM from equirect
+    const envRT = pmrem.fromEquirectangular(hdrTex).texture;
+    scene.environment = envRT;
+    // dispose HDR source and old pmrem resources
+    hdrTex.dispose && hdrTex.dispose();
+    try { pmrem.dispose(); } catch (e) { /* ignore */ }
+    // create a fresh pmrem reference for future replacements if needed
+    pmrem = new THREE.PMREMGenerator(renderer);
+  }, undefined, (err) => {
+    console.warn('HDR load failed (this is optional):', err);
   });
 
   // ------------------------------------------------------------
@@ -163,11 +185,33 @@
   scene.add(interactPlane);
 
   // ------------------------------------------------------------
+  // Helper: generate soft radial gradient texture (STEP 2)
+  // ------------------------------------------------------------
+  function generateGlowTexture(size = 256, color = '#fff3d9') {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    // create radial gradient center bright -> transparent edge
+    const g = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    g.addColorStop(0.0, color);
+    g.addColorStop(0.25, color);
+    g.addColorStop(0.6, 'rgba(255,243,217,0.45)');
+    g.addColorStop(1.0, 'rgba(255,243,217,0.0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,size,size);
+    const tx = new THREE.CanvasTexture(c);
+    tx.needsUpdate = true;
+    tx.minFilter = THREE.LinearFilter;
+    tx.magFilter = THREE.LinearFilter;
+    return tx;
+  }
+
+  // ------------------------------------------------------------
   // Cursor light (shared): follows pointer, affects materials
   // ------------------------------------------------------------
   const cursorLight = new THREE.PointLight(0xfff7ea, 0.0, 28, 2.2);
-  cursorLight.castShadow = true;
-  cursorLight.shadow.mapSize.set(2048, 2048);
+  // STEP 5 — Do not cast shadow from cursor
+  cursorLight.castShadow = false;
   scene.add(cursorLight);
 
   const cursorBall = new THREE.Mesh(
@@ -177,9 +221,17 @@
   cursorBall.renderOrder = 999;
   scene.add(cursorBall);
 
-  // glow sprite for cursor
-  const spriteMap = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteMap, color: 0xfff3d9, blending: THREE.AdditiveBlending, transparent:true, opacity:0.9, depthWrite:false }));
+  // STEP 2 — replace old sprite with generated radial gradient
+  const glowTexture = generateGlowTexture(512, '#fff3d9');
+  const glowMaterial = new THREE.SpriteMaterial({
+    map: glowTexture,
+    color: 0xffffff,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false
+  });
+  const glow = new THREE.Sprite(glowMaterial);
   glow.scale.setScalar(0.8);
   scene.add(glow);
 
@@ -208,12 +260,10 @@
     const points = new THREE.Points(geom, mat);
     points.userData.life = 1.0;
     pulseGroup.add(points);
-    // schedule cleanup (handled in animate)
   }
 
   // ------------------------------------------------------------
-  // Scene class (modular) — each scene builds its own porcelain,
-  // lights, particles and behavior. Scenes expose enter/exit/update.
+  // Scene class (modular)
   // ------------------------------------------------------------
   class PorcelainScene {
     constructor(opts = {}) {
@@ -231,25 +281,28 @@
 
     setup(){
       this.group.clear();
-      // subtle ambient volumetric-ish light (Hemisphere)
+      // hemi
       this.hemi = new THREE.HemisphereLight(0xddddff, 0x0a0a0d, 0.45);
       this.group.add(this.hemi);
 
       // key light created per scene for tonal control
       this.key = new THREE.DirectionalLight(this.palette.key, 1.8);
+      // STEP 5 — keep shadows only for key light and set smaller mapSize
       this.key.castShadow = true;
-      this.key.shadow.mapSize.set(2048,2048);
+      this.key.shadow.mapSize.set(1024,1024);
       this.key.shadow.camera.near = 0.5;
       this.key.shadow.camera.far = 200;
       this.key.position.set(6,10,6);
       this.group.add(this.key);
 
-      // fill and rim
+      // fill and rim (do not cast shadows per STEP 5)
       this.fill = new THREE.DirectionalLight(0x8fb3ff, 0.45);
+      this.fill.castShadow = false;
       this.fill.position.set(-6,5,-6);
       this.group.add(this.fill);
 
       this.rim = new THREE.DirectionalLight(0xffe6d0, 0.6);
+      this.rim.castShadow = false;
       this.rim.position.set(0,6,-8);
       this.group.add(this.rim);
 
@@ -281,14 +334,15 @@
       });
       this.group.add(this.porcelain);
 
-      // small particle halo for mood
+      // STEP 3 — particles: N=600, radius formula changed, opacity lowered to 0.6
       const halo = new THREE.BufferGeometry();
-      const N = 900;
+      const N = 600;
       const pos = new Float32Array(N*3);
       const col = new Float32Array(N*3);
       for (let i=0;i<N;i++){
         const i3 = i*3;
-        const r = 8 + Math.random()*6;
+        // r = 12 + Math.random() * 8
+        const r = 12 + Math.random()*8;
         const theta = Math.random()*Math.PI*2;
         const phi = Math.acos(2*Math.random()-1);
         pos[i3] = r*Math.sin(phi)*Math.cos(theta);
@@ -299,7 +353,7 @@
       }
       halo.setAttribute('position', new THREE.BufferAttribute(pos,3));
       halo.setAttribute('color', new THREE.BufferAttribute(col,3));
-      const pts = new THREE.Points(halo, new THREE.PointsMaterial({ size:0.12, vertexColors:true, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false }));
+      const pts = new THREE.Points(halo, new THREE.PointsMaterial({ size:0.12, vertexColors:true, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending, depthWrite:false }));
       pts.renderOrder = 1;
       this.particles = pts;
       this.group.add(pts);
@@ -337,10 +391,10 @@
         gsap.to(controls.target, { x: cameraTarget.target.x, y: cameraTarget.target.y, z: cameraTarget.target.z, duration: 1.2, ease: 'expo.inOut', onUpdate: () => controls.update() });
       }
       // gentle bloom change
-      gsap.to(bloomPass, { strength: 0.85 + (this.id*0.12), duration: 0.9 });
+      gsap.to(bloomPass, { strength: 0.55 + (this.id*0.06), duration: 0.9 });
 
       // subtle particle show
-      gsap.fromTo(this.particles.material, { opacity: 0.0 }, { opacity: 0.88, duration: 1.2, ease: 'power2.out' });
+      gsap.fromTo(this.particles.material, { opacity: 0.0 }, { opacity: 0.6, duration: 1.2, ease: 'power2.out' });
     }
 
     exit() {
@@ -397,11 +451,9 @@
   }
 
   // ------------------------------------------------------------
-  // Five porcelain "makers" — either procedural or loading glb
-  // These create meshes with distinct silhouettes/feels.
+  // Five porcelain "makers" — procedural stand-ins
   // ------------------------------------------------------------
   function makeVesselA() {
-    // smooth tall vase — Dawn Vessel (scene 1)
     const lathePts = [];
     for (let i=0;i<20;i++){
       const t = i/19;
@@ -417,7 +469,6 @@
   }
 
   function makePlateB() {
-    // wide shallow plate — Calm Mirror (scene 2)
     const ring = new THREE.RingGeometry(0.5, 2.0, 128);
     const bowl = new THREE.SphereGeometry(2.2, 128, 128, 0, Math.PI*2, 0, Math.PI/2);
     bowl.scale(1,0.38,1);
@@ -431,7 +482,6 @@
   }
 
   function makeMiniSculptC() {
-    // abstract folded porcelain — Whim (scene 3)
     const geo = new THREE.TorusKnotGeometry(0.9, 0.25, 256, 32, 2, 3);
     geo.rotateX(Math.PI*0.1);
     const mat = new THREE.MeshPhysicalMaterial({ color: 0xffefef, roughness: 0.08, clearcoat: 1.0, envMap: scene.environment, envMapIntensity: 1.2 });
@@ -441,7 +491,6 @@
   }
 
   function makeTallCylinderD() {
-    // slender cylinder with cutouts — Echo (scene 4)
     const geo = new THREE.CylinderGeometry(0.8,0.8,3.6,64,1,true);
     const mat = new THREE.MeshPhysicalMaterial({ color: 0xfffffb, roughness: 0.06, clearcoat: 1.0, envMap: scene.environment, envMapIntensity: 1.2 });
     const mesh = new THREE.Mesh(geo, mat);
@@ -450,7 +499,6 @@
   }
 
   function makeBowlE() {
-    // deep bowl with glaze — Night Bloom (scene 5)
     const geo = new THREE.SphereGeometry(1.8, 128, 128, 0, Math.PI*2, 0, Math.PI/1.7);
     geo.scale(1,0.7,1);
     const mat = new THREE.MeshPhysicalMaterial({ color: 0xe8f2ff, roughness: 0.02, clearcoat:0.9, envMap: scene.environment, envMapIntensity:1.8 });
@@ -474,16 +522,15 @@
   let currentIndex = 0;
   scene.add(scenes[0].group);
 
-  // set camera framing target for each scene (tuned per scene)
+  // set camera framing target for each scene
   const sceneCameraTargets = [
-    { position: new THREE.Vector3(6,3.5,6), target: new THREE.Vector3(0,1.1,0) }, // 1
-    { position: new THREE.Vector3(5.5,2.8,5.8), target: new THREE.Vector3(0,0.85,0) }, // 2
-    { position: new THREE.Vector3(7,3.4,7), target: new THREE.Vector3(0,0.8,0) }, // 3
-    { position: new THREE.Vector3(6.2,3.8,6.2), target: new THREE.Vector3(0,1.4,0) }, //4
-    { position: new THREE.Vector3(7.5,3.6,7.8), target: new THREE.Vector3(0,0.9,0) } //5
+    { position: new THREE.Vector3(6,3.5,6), target: new THREE.Vector3(0,1.1,0) },
+    { position: new THREE.Vector3(5.5,2.8,5.8), target: new THREE.Vector3(0,0.85,0) },
+    { position: new THREE.Vector3(7,3.4,7), target: new THREE.Vector3(0,0.8,0) },
+    { position: new THREE.Vector3(6.2,3.8,6.2), target: new THREE.Vector3(0,1.4,0) },
+    { position: new THREE.Vector3(7.5,3.6,7.8), target: new THREE.Vector3(0,0.9,0) }
   ];
 
-  // scene label UI
   const sceneLabel = document.getElementById('sceneLabel');
   function updateSceneLabel() {
     sceneLabel.textContent = `Scene ${currentIndex+1} / 5 — ${scenes[currentIndex].name}`;
@@ -494,7 +541,35 @@
   scenes[currentIndex].enter(sceneCameraTargets[currentIndex]);
 
   // ------------------------------------------------------------
-  // Scene switching with GSAP cinematic camera motion
+  // Utilities to set/get group opacity safely for transition (STEP 6)
+  // ------------------------------------------------------------
+  function setGroupOpacity(group, value) {
+    group.traverse((c) => {
+      if (c.isMesh && c.material) {
+        if (!('__origTransparent' in c.material)) {
+          c.material.__origTransparent = c.material.transparent;
+          c.material.__origOpacity = c.material.opacity !== undefined ? c.material.opacity : 1.0;
+        }
+        c.material.transparent = true;
+        c.material.opacity = value;
+        c.material.needsUpdate = true;
+      }
+    });
+  }
+  function restoreGroupMaterialStates(group) {
+    group.traverse((c) => {
+      if (c.isMesh && c.material && ('__origTransparent' in c.material)) {
+        c.material.transparent = c.material.__origTransparent;
+        c.material.opacity = c.material.__origOpacity;
+        delete c.material.__origTransparent;
+        delete c.material.__origOpacity;
+        c.material.needsUpdate = true;
+      }
+    });
+  }
+
+  // ------------------------------------------------------------
+  // Scene switching with GSAP timeline (STEP 6 — smoother transitions)
   // ------------------------------------------------------------
   let transitioning = false;
   function gotoScene(index, direction = 1) {
@@ -503,42 +578,61 @@
     const from = scenes[currentIndex];
     const to = scenes[index];
 
-    // add next group's object to scene for smooth crossfade
+    // Add new scene group to scene graph for crossfade
     scene.add(to.group);
 
-    // compute camera flight path: spiral / zoom depending on direction
-    const startPos = camera.position.clone();
-    const startTarget = controls.target.clone();
-    const endPos = sceneCameraTargets[index].position;
-    const endTarget = sceneCameraTargets[index].target;
+    // prepare materials for opacity crossfade
+    setGroupOpacity(from.group, 1.0);
+    setGroupOpacity(to.group, 0.0);
 
-    const flightDuration = 1.2;
+    // disable controls during transition (STEP 6)
+    controls.enabled = false;
 
-    // animate a cinematic camera path using gsap (position + target)
-    gsap.to(camera.position, {
-      x: endPos.x, y: endPos.y, z: endPos.z,
-      duration: flightDuration,
-      ease: "power2.inOut",
-      onUpdate: () => { camera.updateProjectionMatrix(); }
+    // build timeline
+    const tl = gsap.timeline({
+      onComplete: () => {
+        // cleanup: remove old group and restore materials
+        scene.remove(from.group);
+        restoreGroupMaterialStates(to.group);
+        restoreGroupMaterialStates(from.group);
+        currentIndex = index;
+        updateSceneLabel();
+        transitioning = false;
+        controls.enabled = true;
+      }
     });
-    gsap.to(controls.target, {
-      x: endTarget.x, y: endTarget.y, z: endTarget.z,
-      duration: flightDuration,
-      ease: "power2.inOut",
-      onUpdate: () => controls.update()
-    });
 
-    // crossfade lights and bloom
-    from.exit();
+    // start camera flight: small arc/zoom + change target
+    tl.to(camera.position, { x: sceneCameraTargets[index].position.x * 0.7 + camera.position.x*0.3, y: sceneCameraTargets[index].position.y*0.7 + camera.position.y*0.3, z: sceneCameraTargets[index].position.z*0.7 + camera.position.z*0.3, duration: 0.6, ease: "power2.inOut" });
+    tl.to(controls.target, { x: sceneCameraTargets[index].target.x, y: sceneCameraTargets[index].target.y, z: sceneCameraTargets[index].target.z, duration: 1.05, ease:"expo.inOut", onUpdate: () => controls.update() }, "<0.15");
+
+    // crossfade: fade out old, fade in new
+    tl.to(from.group.children, { duration: 0.9, onStart: () => from.exit() }, "<0.05");
+    tl.to({}, { duration: 0.05 }); // small spacer
+    tl.to(from.group.children, { onUpdate: () => {}, duration: 0.9 }, "<");
+    // animate opacities directly
+    tl.to({}, { duration: 0.01 }); // spacer to ensure sequencing
+    tl.to({ t: 1 }, {
+      t: 0,
+      duration: 0.95,
+      ease: "power2.inOut",
+      onUpdate: function() {
+        const val = this.targets()[0].t;
+        setGroupOpacity(from.group, val);
+      }
+    }, "<0.05");
+    tl.to({ t: 0 }, {
+      t: 1,
+      duration: 1.05,
+      ease: "power2.inOut",
+      onUpdate: function() {
+        const val = this.targets()[0].t;
+        setGroupOpacity(to.group, val);
+      }
+    }, "<0.1");
+
+    // finalize with explicit enter() call for new scene (lighting, bloom adjustments)
     to.enter(sceneCameraTargets[index]);
-
-    // after camera movement settle, remove previous scene group
-    gsap.delayedCall(flightDuration + 0.08, () => {
-      scene.remove(from.group);
-      currentIndex = index;
-      updateSceneLabel();
-      transitioning = false;
-    });
   }
 
   // keyboard navigation
@@ -568,14 +662,13 @@
   window.addEventListener('mousemove', onPointerMove, { passive: true });
   window.addEventListener('pointerdown', (e) => {
     onPointerMove(e);
-    // spawn a pulse at intersection point
     const pos = computeCursorWorld();
     spawnPulse(pos, 0xfff0d8, 80);
   }, { passive: true });
   window.addEventListener('pointerup', () => { pointerActive = false; lastInteractionTime = performance.now(); }, { passive: true });
 
-  // smooth scroll to zoom
-  let scrollTarget = camera.position.z;
+  // smooth scroll to zoom — we will lerp camera distance
+  let scrollTarget = camera.position.distanceTo(controls.target);
   window.addEventListener('wheel', (e) => {
     const delta = e.deltaY * 0.003;
     scrollTarget += delta * 6.0;
@@ -584,29 +677,38 @@
 
   function computeCursorWorld() {
     raycaster.setFromCamera(mouse, camera);
-    // intersect current porcelain first
     const curScene = scenes[currentIndex];
     if (curScene && curScene.porcelain) {
       const meshes = []; curScene.porcelain.traverse((m)=>{ if (m.isMesh) meshes.push(m); });
       const ints = raycaster.intersectObjects(meshes, true);
       if (ints.length>0) return ints[0].point.clone();
     }
-    // otherwise plane
     const ints2 = raycaster.intersectObject(interactPlane);
     if (ints2.length>0) return ints2[0].point.clone();
     return new THREE.Vector3(mouse.x, mouse.y, 0.5).unproject(camera);
   }
 
   // ------------------------------------------------------------
-  // Resize
+  // Resize (STEP 7 — ensure correct bokeh aspect update)
   // ------------------------------------------------------------
   window.addEventListener('resize', () => {
-    camera.aspect = innerWidth/innerHeight;
+    camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-    composer.setSize(innerWidth, innerHeight);
-    bokehPass.uniforms['width'].value = innerWidth;
-    bokehPass.uniforms['height'].value = innerHeight;
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    // Bokeh pass aspect adjustment per requirement
+    try {
+      if (bokehPass && bokehPass.materialBokeh && bokehPass.materialBokeh.uniforms && bokehPass.materialBokeh.uniforms.aspect) {
+        bokehPass.materialBokeh.uniforms.aspect.value = camera.aspect;
+      }
+      // some implementations use different uniform names; attempt safer fallback too
+      if (bokehPass && bokehPass.uniforms && bokehPass.uniforms['width']) {
+        bokehPass.uniforms['width'].value = window.innerWidth;
+        bokehPass.uniforms['height'].value = window.innerHeight;
+      }
+    } catch (err) {
+      // ignore if pass doesn't expose that API
+    }
   });
 
   // ------------------------------------------------------------
@@ -623,7 +725,7 @@
   });
 
   // ------------------------------------------------------------
-  // Animate loop
+  // Animate loop (core interactivity)
   // ------------------------------------------------------------
   const clock = new THREE.Clock();
 
@@ -634,9 +736,6 @@
     // smooth scroll zoom towards scrollTarget -> adjust camera along its forward vector
     const camDir = new THREE.Vector3();
     camera.getWorldDirection(camDir);
-    const currentZ = camera.position.length();
-    // instead, lerp camera position along vector from controls.target
-    // compute desired camera position by direction from controls.target
     const desiredDistance = THREE.MathUtils.lerp(camera.position.distanceTo(controls.target), scrollTarget, 0.06);
     const newCamPos = new THREE.Vector3().copy(camDir).multiplyScalar(-desiredDistance).add(controls.target);
     camera.position.lerp(newCamPos, 0.08);
@@ -657,14 +756,17 @@
       cursorLight.position.lerp(cursorWorld, 0.18);
       cursorBall.position.lerp(cursorWorld, 0.17);
       glow.position.lerp(new THREE.Vector3().copy(cursorWorld).add(new THREE.Vector3().subVectors(camera.position, cursorWorld).setLength(0.06)), 0.18);
-      const intended = 0.04 + cursorIntensity * 6.0;
+
+      // STEP 1 — reduce multiplier, clamp intensity and lerp (smooth interpolation)
+      const intendedRaw = 0.04 + cursorIntensity * 1.6; // reduced multiplier
+      const intended = THREE.MathUtils.clamp(intendedRaw, 0.04, 1.8); // clamp
       cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, intended, 0.12);
+
       // glow scale and opacity
-      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.9 * (cursorIntensity*0.85 + 0.15), 0.12);
-      const gS = THREE.MathUtils.lerp(glow.scale.x, 0.3 + cursorIntensity*2.2, 0.12);
+      glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.65 * (cursorIntensity*0.85 + 0.15), 0.12);
+      const gS = THREE.MathUtils.lerp(glow.scale.x, 0.3 + cursorIntensity*1.8, 0.12);
       glow.scale.setScalar(gS);
     } else {
-      // fade out when offscreen
       cursorLight.intensity = THREE.MathUtils.lerp(cursorLight.intensity, 0.0, 0.06);
       glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, 0.0, 0.05);
     }
@@ -679,7 +781,6 @@
         posAttr.array[v*3] += velAttr.array[v*3] * dt;
         posAttr.array[v*3+1] += velAttr.array[v*3+1] * dt;
         posAttr.array[v*3+2] += velAttr.array[v*3+2] * dt;
-        // gravity
         velAttr.array[v*3+1] -= dt * 0.9;
       }
       posAttr.needsUpdate = true;
