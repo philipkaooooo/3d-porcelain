@@ -71,6 +71,8 @@
             bottom: 10px;
             right: 10px;
             min-width: 280px;
+            max-height: 200px;
+            overflow-y: auto;
         }
 
         h3 {
@@ -120,10 +122,21 @@
             height: 4px;
             border-radius: 2px;
             outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #00ff88;
+            border-radius: 50%;
+            cursor: pointer;
         }
 
         input[type="checkbox"] {
             margin-right: 8px;
+            transform: scale(1.2);
         }
 
         button {
@@ -136,6 +149,7 @@
             font-size: 11px;
             margin: 2px;
             transition: all 0.3s;
+            font-family: inherit;
         }
 
         button:hover {
@@ -175,6 +189,7 @@
             height: 100%;
             background: linear-gradient(90deg, #00ff88, #88ffcc);
             transition: width 0.3s;
+            width: 0%;
         }
 
         /* Loading screen */
@@ -191,6 +206,7 @@
             align-items: center;
             z-index: 2000;
             color: #00ff88;
+            font-family: inherit;
         }
 
         .loading-bar {
@@ -206,7 +222,7 @@
             height: 100%;
             background: #00ff88;
             width: 0%;
-            transition: width 0.3s;
+            transition: width 0.3s ease-out;
         }
 
         .hotkey {
@@ -218,10 +234,24 @@
             font-size: 10px;
             margin: 0 2px;
         }
+
+        .water-surface {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 30%;
+            background: linear-gradient(to top, 
+                rgba(0, 50, 100, 0.8) 0%,
+                rgba(0, 100, 150, 0.4) 50%,
+                transparent 100%);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div id="container"></div>
+    <div class="water-surface" id="waterSurface"></div>
 
     <!-- Loading Screen -->
     <div class="loading" id="loading">
@@ -286,9 +316,9 @@
             </div>
             <div class="button-group">
                 <button onclick="toggleWireframe()">Wireframe</button>
-                <button onclick="toggleNormals()">Show Normals</button>
-                <button onclick="toggleBounds()">Show Bounds</button>
-                <button onclick="exportScene()">Export Scene</button>
+                <button onclick="toggleParticles()">Particles</button>
+                <button onclick="toggleWater()">Water FX</button>
+                <button onclick="takeScreenshot()">Screenshot</button>
             </div>
         </div>
 
@@ -317,26 +347,18 @@
             <h3>Debug Console</h3>
             <div id="debugLog">
                 <div class="log-entry">System initialized</div>
-                <div class="log-entry">WebGL context created</div>
-                <div class="log-entry">Shader compilation complete</div>
+                <div class="log-entry">Ready to load...</div>
             </div>
             <div class="button-group">
                 <button onclick="clearLog()">Clear Log</button>
-                <button onclick="takeScreenshot()">Screenshot</button>
+                <button onclick="exportData()">Export Data</button>
                 <button onclick="toggleUI()">Hide UI</button>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
-        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js';
-        import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js';
-        import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/OutputPass.js';
-
-        // Global state
+    <script>
+        // Global state management
         const APP = {
             scene: null,
             camera: null,
@@ -347,10 +369,12 @@
             scenes: [],
             clock: new THREE.Clock(),
             stats: {
-                fps: 0,
+                fps: 60,
                 frameTime: 0,
                 triangles: 0,
-                drawCalls: 0
+                drawCalls: 0,
+                lastTime: performance.now(),
+                frameCount: 0
             },
             settings: {
                 autoRotate: true,
@@ -358,48 +382,80 @@
                 bloomIntensity: 0.8,
                 exposure: 1.0,
                 wireframe: false,
-                showNormals: false,
-                showBounds: false
+                particlesEnabled: true,
+                waterEnabled: true
+            },
+            assets: {
+                textures: {},
+                models: {}
             }
         };
 
-        // Initialize the application
-        async function init() {
-            updateLoading('Creating renderer...', 20);
-            await createRenderer();
-            
-            updateLoading('Setting up scene...', 40);
-            await setupScene();
-            
-            updateLoading('Creating effects...', 60);
-            await setupPostProcessing();
-            
-            updateLoading('Loading assets...', 80);
-            await createScenes();
-            
-            updateLoading('Finalizing...', 95);
-            await finalizeSetup();
-            
-            updateLoading('Ready!', 100);
-            
-            // Hide loading screen after a brief delay
-            setTimeout(() => {
-                document.getElementById('loading').style.display = 'none';
-                addLogEntry('Application ready');
-            }, 500);
-            
-            // Start animation loop
-            animate();
+        // Initialize Three.js and the application
+        async function initializeApplication() {
+            try {
+                updateLoading('Loading Three.js...', 10);
+                
+                // Import Three.js from CDN
+                await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+                
+                updateLoading('Initializing renderer...', 25);
+                await initializeRenderer();
+                
+                updateLoading('Setting up scene...', 45);
+                await setupScene();
+                
+                updateLoading('Creating objects...', 65);
+                await createScenes();
+                
+                updateLoading('Setting up lighting...', 80);
+                await setupLighting();
+                
+                updateLoading('Finalizing...', 95);
+                await finalizeSetup();
+                
+                updateLoading('Ready!', 100);
+                
+                setTimeout(() => {
+                    document.getElementById('loading').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('loading').style.display = 'none';
+                    }, 500);
+                }, 1000);
+                
+                startAnimationLoop();
+                
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                updateLoading('Initialization failed: ' + error.message, 0);
+            }
+        }
+
+        // Utility function to load scripts
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
         }
 
         function updateLoading(text, progress) {
-            document.getElementById('loadingText').textContent = text;
-            document.getElementById('loadingProgress').style.width = `${progress}%`;
+            const loadingText = document.getElementById('loadingText');
+            const loadingProgress = document.getElementById('loadingProgress');
+            
+            if (loadingText) loadingText.textContent = text;
+            if (loadingProgress) loadingProgress.style.width = `${progress}%`;
+            
             addLogEntry(text);
         }
 
         function addLogEntry(message) {
             const log = document.getElementById('debugLog');
+            if (!log) return;
+            
             const entry = document.createElement('div');
             entry.className = 'log-entry';
             entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
@@ -408,21 +464,21 @@
         }
 
         function clearLog() {
-            document.getElementById('debugLog').innerHTML = '';
-            addLogEntry('Log cleared');
+            const log = document.getElementById('debugLog');
+            if (log) log.innerHTML = '<div class="log-entry">Log cleared</div>';
         }
 
-        async function createRenderer() {
-            // Create WebGL renderer with advanced settings
+        async function initializeRenderer() {
+            // Create WebGL renderer
             APP.renderer = new THREE.WebGLRenderer({
                 antialias: true,
                 powerPreference: "high-performance",
-                alpha: true
+                alpha: false
             });
             
             APP.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             APP.renderer.setSize(window.innerWidth, window.innerHeight);
-            APP.renderer.outputColorSpace = THREE.SRGBColorSpace;
+            APP.renderer.outputEncoding = THREE.sRGBEncoding;
             APP.renderer.toneMapping = THREE.ACESFilmicToneMapping;
             APP.renderer.toneMappingExposure = APP.settings.exposure;
             APP.renderer.shadowMap.enabled = true;
@@ -430,21 +486,21 @@
             
             document.getElementById('container').appendChild(APP.renderer.domElement);
             
-            addLogEntry('Renderer created with advanced settings');
+            addLogEntry('WebGL renderer initialized');
         }
 
         async function setupScene() {
             // Create main scene
             APP.scene = new THREE.Scene();
             APP.scene.background = new THREE.Color(0x000511);
-            APP.scene.fog = new THREE.Fog(0x000511, 10, 50);
+            APP.scene.fog = new THREE.Fog(0x000511, 15, 50);
 
             // Create camera
             APP.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
             APP.camera.position.set(8, 5, 12);
 
-            // Create controls
-            APP.controls = new OrbitControls(APP.camera, APP.renderer.domElement);
+            // Create orbit controls
+            APP.controls = new THREE.OrbitControls(APP.camera, APP.renderer.domElement);
             APP.controls.enableDamping = true;
             APP.controls.dampingFactor = 0.05;
             APP.controls.minDistance = 3;
@@ -452,51 +508,30 @@
             APP.controls.autoRotate = APP.settings.autoRotate;
             APP.controls.autoRotateSpeed = APP.settings.rotationSpeed;
 
-            // Add ambient light
+            addLogEntry('Scene and camera setup complete');
+        }
+
+        async function setupLighting() {
+            // Ambient light
             const ambientLight = new THREE.AmbientLight(0x404060, 0.4);
             APP.scene.add(ambientLight);
 
-            // Add directional light
+            // Directional light
             const directionalLight = new THREE.DirectionalLight(0xfff0e0, 1.2);
             directionalLight.position.set(10, 15, 10);
             directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
             APP.scene.add(directionalLight);
 
-            // Add hemisphere light for natural lighting
+            // Hemisphere light
             const hemisphereLight = new THREE.HemisphereLight(0x4488ff, 0x224433, 0.3);
             APP.scene.add(hemisphereLight);
 
-            addLogEntry('Scene setup complete');
-        }
-
-        async function setupPostProcessing() {
-            // Create effect composer
-            APP.composer = new EffectComposer(APP.renderer);
-            
-            // Add render pass
-            const renderPass = new RenderPass(APP.scene, APP.camera);
-            APP.composer.addPass(renderPass);
-            
-            // Add bloom pass
-            APP.bloomPass = new UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
-                APP.settings.bloomIntensity,
-                0.4,
-                0.85
-            );
-            APP.composer.addPass(APP.bloomPass);
-            
-            // Add output pass
-            const outputPass = new OutputPass();
-            APP.composer.addPass(outputPass);
-            
-            addLogEntry('Post-processing pipeline established');
+            addLogEntry('Lighting system configured');
         }
 
         async function createScenes() {
-            // Create 5 different porcelain scenes
             const sceneConfigs = [
                 { name: "Dawn Vessel", color: 0xffeebb, scale: 1.2 },
                 { name: "Calm Plate", color: 0xbbeeff, scale: 1.0 },
@@ -509,7 +544,7 @@
                 const config = sceneConfigs[i];
                 const sceneGroup = new THREE.Group();
                 
-                // Create porcelain geometry based on scene type
+                // Create geometry based on scene type
                 let geometry;
                 switch(i) {
                     case 0: // Vessel
@@ -529,16 +564,16 @@
                         break;
                 }
                 
-                // Create advanced porcelain material
+                // Create material
                 const material = new THREE.MeshPhysicalMaterial({
                     color: config.color,
                     roughness: 0.1,
                     metalness: 0.0,
                     clearcoat: 1.0,
                     clearcoatRoughness: 0.05,
-                    transmission: 0.2,
-                    thickness: 0.5,
-                    envMapIntensity: 1.2
+                    transmission: 0.1,
+                    transparent: true,
+                    opacity: 0.9
                 });
                 
                 const mesh = new THREE.Mesh(geometry, material);
@@ -548,25 +583,28 @@
                 
                 sceneGroup.add(mesh);
                 
-                // Add decorative elements
-                addDecorativeElements(sceneGroup, i);
+                // Add particles
+                if (APP.settings.particlesEnabled) {
+                    addParticleSystem(sceneGroup, i);
+                }
                 
-                // Store scene data
+                // Store scene
                 APP.scenes.push({
                     group: sceneGroup,
                     mesh: mesh,
                     config: config,
+                    particles: sceneGroup.children.find(child => child.isPoints),
                     animation: {
-                        rotationSpeed: 0.5 + Math.random() * 1.0,
-                        floatHeight: 0.1 + Math.random() * 0.3,
-                        floatSpeed: 1 + Math.random() * 2
+                        rotationSpeed: 0.3 + Math.random() * 0.4,
+                        floatHeight: 0.1 + Math.random() * 0.2,
+                        floatSpeed: 0.5 + Math.random() * 1.0
                     }
                 });
                 
                 addLogEntry(`Created scene: ${config.name}`);
             }
             
-            // Add first scene to render
+            // Add first scene
             APP.scene.add(APP.scenes[0].group);
         }
 
@@ -574,45 +612,46 @@
             const points = [];
             for (let i = 0; i <= 20; i++) {
                 const t = i / 20;
-                const x = Math.sin(t * Math.PI) * 2;
-                const y = (t - 0.5) * 4;
+                const x = Math.sin(t * Math.PI) * 1.5;
+                const y = (t - 0.5) * 3;
                 points.push(new THREE.Vector2(x, y));
             }
             return new THREE.LatheGeometry(points, 32);
         }
 
         function createPlateGeometry() {
-            const geometry = new THREE.CylinderGeometry(3, 3, 0.3, 64);
-            geometry.rotateX(Math.PI / 2);
-            return geometry;
+            return new THREE.CylinderGeometry(2, 2, 0.2, 64);
         }
 
         function createSculptureGeometry() {
-            const geometry = new THREE.TorusKnotGeometry(1, 0.3, 128, 32);
-            return geometry;
+            return new THREE.TorusKnotGeometry(1, 0.3, 64, 16);
         }
 
         function createColumnGeometry() {
-            const geometry = new THREE.CylinderGeometry(1, 1.2, 4, 32);
-            return geometry;
+            return new THREE.CylinderGeometry(0.8, 1, 3, 32);
         }
 
         function createBowlGeometry() {
-            const geometry = new THREE.SphereGeometry(2, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-            return geometry;
+            return new THREE.SphereGeometry(1.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
         }
 
-        function addDecorativeElements(sceneGroup, sceneIndex) {
-            // Add particle system
-            const particleCount = 200 + sceneIndex * 50;
+        function addParticleSystem(sceneGroup, sceneIndex) {
+            const particleCount = 100;
             const particles = new THREE.BufferGeometry();
             const positions = new Float32Array(particleCount * 3);
             const colors = new Float32Array(particleCount * 3);
             
+            const colorPalette = [
+                new THREE.Color(0xff6b6b),
+                new THREE.Color(0x4ecdc4),
+                new THREE.Color(0x45b7d1),
+                new THREE.Color(0x96ceb4),
+                new THREE.Color(0xffeaa7)
+            ];
+            
             for (let i = 0; i < particleCount; i++) {
                 const i3 = i * 3;
-                // Position particles in a sphere around the object
-                const radius = 3 + Math.random() * 2;
+                const radius = 2 + Math.random() * 3;
                 const theta = Math.random() * Math.PI * 2;
                 const phi = Math.acos(2 * Math.random() - 1);
                 
@@ -620,9 +659,8 @@
                 positions[i3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
                 positions[i3 + 2] = Math.cos(phi) * radius;
                 
-                // Color based on scene index
-                const hue = (sceneIndex * 72) / 360;
-                const color = new THREE.Color().setHSL(hue, 0.7, 0.6);
+                const color = colorPalette[sceneIndex % colorPalette.length].clone();
+                color.multiplyScalar(0.7 + Math.random() * 0.3);
                 colors[i3] = color.r;
                 colors[i3 + 1] = color.g;
                 colors[i3 + 2] = color.b;
@@ -632,10 +670,11 @@
             particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             
             const particleMaterial = new THREE.PointsMaterial({
-                size: 0.1,
+                size: 0.05,
                 vertexColors: true,
                 transparent: true,
-                opacity: 0.6
+                opacity: 0.6,
+                sizeAttenuation: true
             });
             
             const particleSystem = new THREE.Points(particles, particleMaterial);
@@ -643,23 +682,34 @@
         }
 
         async function finalizeSetup() {
-            // Add window resize handler
+            // Setup event listeners
             window.addEventListener('resize', onWindowResize);
-            
-            // Add keyboard controls
             window.addEventListener('keydown', onKeyDown);
             
             // Initialize UI controls
             initializeUIControls();
             
-            addLogEntry('All systems initialized');
+            // Create simple water effect
+            createWaterEffect();
+            
+            addLogEntry('Application fully initialized');
+        }
+
+        function createWaterEffect() {
+            // Simple CSS-based water surface effect
+            const waterSurface = document.getElementById('waterSurface');
+            if (waterSurface) {
+                waterSurface.style.background = `linear-gradient(to top, 
+                    rgba(0, 50, 100, 0.6) 0%,
+                    rgba(0, 100, 150, 0.3) 50%,
+                    transparent 100%)`;
+            }
         }
 
         function onWindowResize() {
             APP.camera.aspect = window.innerWidth / window.innerHeight;
             APP.camera.updateProjectionMatrix();
             APP.renderer.setSize(window.innerWidth, window.innerHeight);
-            APP.composer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function onKeyDown(event) {
@@ -672,6 +722,7 @@
                     break;
                 case ' ':
                     toggleAnimation();
+                    event.preventDefault();
                     break;
                 case 'r':
                     resetCamera();
@@ -723,18 +774,6 @@
                 APP.controls.autoRotateSpeed = APP.settings.rotationSpeed;
             });
             
-            // Bloom intensity
-            document.getElementById('bloomIntensity').addEventListener('input', (e) => {
-                APP.settings.bloomIntensity = parseFloat(e.target.value);
-                APP.bloomPass.strength = APP.settings.bloomIntensity;
-            });
-            
-            // Exposure
-            document.getElementById('exposure').addEventListener('input', (e) => {
-                APP.settings.exposure = parseFloat(e.target.value);
-                APP.renderer.toneMappingExposure = APP.settings.exposure;
-            });
-            
             // Animation toggle
             document.getElementById('animationToggle').addEventListener('change', (e) => {
                 toggleAnimation();
@@ -750,33 +789,50 @@
             addLogEntry(`Wireframe ${APP.settings.wireframe ? 'enabled' : 'disabled'}`);
         }
 
-        function toggleNormals() {
-            APP.settings.showNormals = !APP.settings.showNormals;
-            // Implementation for normal visualization would go here
-            addLogEntry(`Normals visualization ${APP.settings.showNormals ? 'enabled' : 'disabled'}`);
+        function toggleParticles() {
+            APP.settings.particlesEnabled = !APP.settings.particlesEnabled;
+            APP.scenes.forEach(scene => {
+                if (scene.particles) {
+                    scene.particles.visible = APP.settings.particlesEnabled;
+                }
+            });
+            addLogEntry(`Particles ${APP.settings.particlesEnabled ? 'enabled' : 'disabled'}`);
         }
 
-        function toggleBounds() {
-            APP.settings.showBounds = !APP.settings.showBounds;
-            // Implementation for bounds visualization would go here
-            addLogEntry(`Bounds visualization ${APP.settings.showBounds ? 'enabled' : 'disabled'}`);
-        }
-
-        function exportScene() {
-            // Implementation for scene export would go here
-            addLogEntry('Scene export initiated');
+        function toggleWater() {
+            APP.settings.waterEnabled = !APP.settings.waterEnabled;
+            const waterSurface = document.getElementById('waterSurface');
+            if (waterSurface) {
+                waterSurface.style.display = APP.settings.waterEnabled ? 'block' : 'none';
+            }
+            addLogEntry(`Water effects ${APP.settings.waterEnabled ? 'enabled' : 'disabled'}`);
         }
 
         function takeScreenshot() {
-            APP.renderer.domElement.toBlob(function(blob) {
-                const a = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                a.href = url;
-                a.download = `porcelain-scene-${new Date().getTime()}.png`;
-                a.click();
-                URL.revokeObjectURL(url);
-            });
+            const canvas = APP.renderer.domElement;
+            const link = document.createElement('a');
+            link.download = `porcelain-${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
             addLogEntry('Screenshot saved');
+        }
+
+        function exportData() {
+            const data = {
+                settings: APP.settings,
+                sceneCount: APP.scenes.length,
+                currentScene: APP.currentScene,
+                timestamp: new Date().toISOString()
+            };
+            const dataStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = 'porcelain-data.json';
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+            addLogEntry('Scene data exported');
         }
 
         function toggleUI() {
@@ -785,81 +841,89 @@
             addLogEntry(`UI ${ui.style.display === 'none' ? 'hidden' : 'shown'}`);
         }
 
-        // Animation and rendering
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            const delta = APP.clock.getDelta();
-            const elapsed = APP.clock.getElapsedTime();
-            
-            // Update controls
-            APP.controls.update();
-            
-            // Update current scene animation
-            const currentScene = APP.scenes[APP.currentScene];
-            if (currentScene) {
-                // Float animation
-                currentScene.group.position.y = Math.sin(elapsed * currentScene.animation.floatSpeed) * currentScene.animation.floatHeight;
+        // Animation loop
+        function startAnimationLoop() {
+            function animate() {
+                requestAnimationFrame(animate);
                 
-                // Gentle rotation
-                if (!APP.controls.autoRotate) {
-                    currentScene.group.rotation.y += delta * currentScene.animation.rotationSpeed * 0.1;
+                const delta = APP.clock.getDelta();
+                const elapsed = APP.clock.getElapsedTime();
+                
+                // Update controls
+                APP.controls.update();
+                
+                // Update current scene
+                const currentScene = APP.scenes[APP.currentScene];
+                if (currentScene) {
+                    // Floating animation
+                    currentScene.group.position.y = Math.sin(elapsed * currentScene.animation.floatSpeed) * currentScene.animation.floatHeight;
+                    
+                    // Gentle rotation when not auto-rotating
+                    if (!APP.controls.autoRotate) {
+                        currentScene.group.rotation.y += delta * currentScene.animation.rotationSpeed * 0.5;
+                    }
+                    
+                    // Particle animation
+                    if (currentScene.particles) {
+                        currentScene.particles.rotation.y += delta * 0.1;
+                    }
                 }
                 
-                // Particle animation
-                const particles = currentScene.group.children.find(child => child.isPoints);
-                if (particles) {
-                    particles.rotation.y += delta * 0.2;
-                }
+                // Update stats
+                updateStats();
+                
+                // Render
+                APP.renderer.render(APP.scene, APP.camera);
             }
             
-            // Update stats
-            updateStats();
-            
-            // Render
-            APP.composer.render();
+            animate();
         }
 
         function updateStats() {
             const now = performance.now();
+            APP.stats.frameCount++;
             
-            // Calculate FPS
-            if (!APP.stats.lastTime) APP.stats.lastTime = now;
-            const deltaTime = now - APP.stats.lastTime;
-            if (deltaTime > 1000) {
-                APP.stats.fps = Math.round(1000 / APP.stats.frameTime);
+            // Update FPS every second
+            if (now >= APP.stats.lastTime + 1000) {
+                APP.stats.fps = Math.round((APP.stats.frameCount * 1000) / (now - APP.stats.lastTime));
+                APP.stats.frameTime = 1000 / APP.stats.fps;
+                APP.stats.frameCount = 0;
                 APP.stats.lastTime = now;
+                
+                // Update UI
+                document.getElementById('fpsCounter').textContent = APP.stats.fps;
+                document.getElementById('frameTime').textContent = `${APP.stats.frameTime.toFixed(1)}ms`;
+                document.getElementById('triangleCount').textContent = APP.renderer.info.render.triangles;
+                document.getElementById('drawCallCount').textContent = APP.renderer.info.render.calls;
+                
+                // Performance graph
+                const performancePercent = Math.min(100, (APP.stats.frameTime / 16.67) * 100);
+                document.getElementById('performanceGraph').style.width = `${performancePercent}%`;
             }
-            APP.stats.frameTime = deltaTime;
-            
-            // Update triangle count (simplified)
-            APP.stats.triangles = APP.renderer.info.render.triangles;
-            APP.stats.drawCalls = APP.renderer.info.render.calls;
-            
-            // Update UI
-            document.getElementById('fpsCounter').textContent = APP.stats.fps;
-            document.getElementById('frameTime').textContent = `${APP.stats.frameTime.toFixed(1)}ms`;
-            document.getElementById('triangleCount').textContent = APP.stats.triangles.toLocaleString();
-            document.getElementById('drawCallCount').textContent = APP.stats.drawCalls;
-            document.getElementById('memoryUsage').textContent = (performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(1) : 'N/A') + ' MB';
-            
-            // Update performance graph
-            const performancePercent = Math.min(100, (APP.stats.frameTime / 16.67) * 100);
-            document.getElementById('performanceGraph').style.width = `${performancePercent}%`;
         }
 
-        // Start the application
-        init().catch(console.error);
-
-        // Make functions globally available for UI
+        // Make functions globally available
         window.toggleWireframe = toggleWireframe;
-        window.toggleNormals = toggleNormals;
-        window.toggleBounds = toggleBounds;
-        window.exportScene = exportScene;
+        window.toggleParticles = toggleParticles;
+        window.toggleWater = toggleWater;
         window.switchScene = switchScene;
         window.takeScreenshot = takeScreenshot;
+        window.exportData = exportData;
         window.toggleUI = toggleUI;
         window.clearLog = clearLog;
+
+        // Start the application when Three.js is loaded
+        if (typeof THREE !== 'undefined') {
+            initializeApplication();
+        } else {
+            // Fallback: Load Three.js and then initialize
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
+                .then(initializeApplication)
+                .catch(error => {
+                    console.error('Failed to load Three.js:', error);
+                    updateLoading('Failed to load 3D engine', 0);
+                });
+        }
     </script>
 </body>
 </html>
